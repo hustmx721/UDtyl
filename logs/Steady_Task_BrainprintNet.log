@@ -1,0 +1,243 @@
+==============================
+dataset: Steady
+model  : BrainprintNet
+seed   : 2024
+gpu    : 6
+数据比例-----训练集:验证集:测试集 = (1224, 1, 64, 1000):(306, 1, 64, 1000):(740, 1, 64, 1000)
+=====================data are prepared===============
+累计用时26.5456s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.9087	Val_acc:0.7712	Train_loss:0.299948	Val_loss:0.470826
+  Train_F1:0.9088, BCA:0.9201, EER:0.0625 | Val_F1:0.7620, BCA:0.7837, EER:0.0901
+Epoch:20	Train_acc:0.9877	Val_acc:0.8954	Train_loss:0.116574	Val_loss:0.254527
+  Train_F1:0.9877, BCA:0.9898, EER:0.0078 | Val_F1:0.8950, BCA:0.9063, EER:0.0495
+Epoch:30	Train_acc:0.9992	Val_acc:0.9314	Train_loss:0.052067	Val_loss:0.202030
+  Train_F1:0.9992, BCA:0.9993, EER:0.0000 | Val_F1:0.9314, BCA:0.9366, EER:0.0452
+Epoch:40	Train_acc:1.0000	Val_acc:0.9444	Train_loss:0.025124	Val_loss:0.160090
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9446, BCA:0.9515, EER:0.0326
+Epoch:50	Train_acc:1.0000	Val_acc:0.9542	Train_loss:0.015942	Val_loss:0.144004
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9544, BCA:0.9595, EER:0.0361
+Epoch:60	Train_acc:1.0000	Val_acc:0.9542	Train_loss:0.010238	Val_loss:0.137769
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9544, BCA:0.9565, EER:0.0331
+Epoch:70	Train_acc:1.0000	Val_acc:0.9542	Train_loss:0.008881	Val_loss:0.133196
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9543, BCA:0.9595, EER:0.0297
+Early stopping triggered at epoch 76.
+--------------------训练完成!--------------------
+总训练轮数-76, 早停轮数-45
+验证集最佳准确率为96.08%
+验证集平均准确率为90.76%
+=====================model are trained===============
+累计用时12825.9030s!
+测试集平均指标为  Acc:71.76%;  F1:71.99%;  BCA:71.95%; EER:19.35%;
+=====================test are done===================
+训练集:验证集:测试集=1224:306:740
+SEED       Acc        F1         BCA        EER       
+2024       0.7176     0.7199     0.7195     0.1935    
+2025       0.0000     0.0000     0.0000     0.0000    
+2026       0.0000     0.0000     0.0000     0.0000    
+2027       0.0000     0.0000     0.0000     0.0000    
+2028       0.0000     0.0000     0.0000     0.0000    
+Avg        0.7176     0.7199     0.7195     0.1935    
+Std        0.0000     0.0000     0.0000     0.0000    
+==============================
+dataset: Steady
+model  : BrainprintNet
+seed   : 2025
+gpu    : 6
+数据比例-----训练集:验证集:测试集 = (1224, 1, 64, 1000):(306, 1, 64, 1000):(740, 1, 64, 1000)
+=====================data are prepared===============
+累计用时25.8856s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.8668	Val_acc:0.7876	Train_loss:0.413916	Val_loss:0.486761
+  Train_F1:0.8671, BCA:0.8750, EER:0.0877 | Val_F1:0.7848, BCA:0.8120, EER:0.1152
+Epoch:20	Train_acc:0.9720	Val_acc:0.8627	Train_loss:0.172500	Val_loss:0.303788
+  Train_F1:0.9721, BCA:0.9752, EER:0.0172 | Val_F1:0.8622, BCA:0.8870, EER:0.0801
+Epoch:30	Train_acc:0.9951	Val_acc:0.9020	Train_loss:0.088179	Val_loss:0.232748
+  Train_F1:0.9951, BCA:0.9952, EER:0.0023 | Val_F1:0.9019, BCA:0.9193, EER:0.0594
+Epoch:40	Train_acc:1.0000	Val_acc:0.9118	Train_loss:0.041056	Val_loss:0.193619
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9118, BCA:0.9267, EER:0.0577
+Epoch:50	Train_acc:1.0000	Val_acc:0.9346	Train_loss:0.026076	Val_loss:0.176319
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9346, BCA:0.9454, EER:0.0522
+Epoch:60	Train_acc:1.0000	Val_acc:0.9248	Train_loss:0.014994	Val_loss:0.170479
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9248, BCA:0.9378, EER:0.0531
+Epoch:70	Train_acc:1.0000	Val_acc:0.9346	Train_loss:0.010175	Val_loss:0.160355
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9346, BCA:0.9455, EER:0.0421
+Epoch:80	Train_acc:1.0000	Val_acc:0.9346	Train_loss:0.007771	Val_loss:0.161331
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9346, BCA:0.9454, EER:0.0431
+Epoch:90	Train_acc:1.0000	Val_acc:0.9346	Train_loss:0.006237	Val_loss:0.155866
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9346, BCA:0.9455, EER:0.0417
+Epoch:100	Train_acc:1.0000	Val_acc:0.9281	Train_loss:0.005123	Val_loss:0.157150
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9280, BCA:0.9398, EER:0.0426
+Epoch:110	Train_acc:1.0000	Val_acc:0.9281	Train_loss:0.003323	Val_loss:0.157587
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9280, BCA:0.9398, EER:0.0426
+Early stopping triggered at epoch 115.
+--------------------训练完成!--------------------
+总训练轮数-115, 早停轮数-84
+验证集最佳准确率为94.44%
+验证集平均准确率为89.75%
+=====================model are trained===============
+累计用时14276.3100s!
+测试集平均指标为  Acc:69.19%;  F1:69.53%;  BCA:69.84%; EER:21.87%;
+=====================test are done===================
+训练集:验证集:测试集=1224:306:740
+SEED       Acc        F1         BCA        EER       
+2024       0.7176     0.7199     0.7195     0.1935    
+2025       0.6919     0.6953     0.6984     0.2187    
+2026       0.0000     0.0000     0.0000     0.0000    
+2027       0.0000     0.0000     0.0000     0.0000    
+2028       0.0000     0.0000     0.0000     0.0000    
+Avg        0.7047     0.7076     0.7090     0.2061    
+Std        0.0128     0.0123     0.0106     0.0126    
+==============================
+dataset: Steady
+model  : BrainprintNet
+seed   : 2026
+gpu    : 6
+数据比例-----训练集:验证集:测试集 = (1224, 1, 64, 1000):(306, 1, 64, 1000):(740, 1, 64, 1000)
+=====================data are prepared===============
+累计用时21.0294s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.9112	Val_acc:0.8399	Train_loss:0.351932	Val_loss:0.435543
+  Train_F1:0.9115, BCA:0.9148, EER:0.0609 | Val_F1:0.8410, BCA:0.8265, EER:0.1012
+Epoch:20	Train_acc:0.9605	Val_acc:0.9150	Train_loss:0.162641	Val_loss:0.248609
+  Train_F1:0.9605, BCA:0.9663, EER:0.0279 | Val_F1:0.9153, BCA:0.9189, EER:0.0472
+Epoch:30	Train_acc:1.0000	Val_acc:0.9216	Train_loss:0.053302	Val_loss:0.182649
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9219, BCA:0.9231, EER:0.0383
+Epoch:40	Train_acc:1.0000	Val_acc:0.9314	Train_loss:0.026459	Val_loss:0.147560
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9316, BCA:0.9373, EER:0.0381
+Epoch:50	Train_acc:1.0000	Val_acc:0.9444	Train_loss:0.020201	Val_loss:0.137213
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9446, BCA:0.9456, EER:0.0380
+Epoch:60	Train_acc:1.0000	Val_acc:0.9444	Train_loss:0.010749	Val_loss:0.126229
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9445, BCA:0.9512, EER:0.0358
+Epoch:70	Train_acc:1.0000	Val_acc:0.9379	Train_loss:0.008303	Val_loss:0.130133
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9381, BCA:0.9427, EER:0.0371
+Early stopping triggered at epoch 77.
+--------------------训练完成!--------------------
+总训练轮数-77, 早停轮数-46
+验证集最佳准确率为95.75%
+验证集平均准确率为89.74%
+=====================model are trained===============
+累计用时7267.5819s!
+测试集平均指标为  Acc:71.62%;  F1:71.92%;  BCA:71.97%; EER:20.78%;
+=====================test are done===================
+训练集:验证集:测试集=1224:306:740
+SEED       Acc        F1         BCA        EER       
+2024       0.7176     0.7199     0.7195     0.1935    
+2025       0.6919     0.6953     0.6984     0.2187    
+2026       0.7162     0.7192     0.7197     0.2078    
+2027       0.0000     0.0000     0.0000     0.0000    
+2028       0.0000     0.0000     0.0000     0.0000    
+Avg        0.7086     0.7115     0.7125     0.2066    
+Std        0.0118     0.0114     0.0100     0.0103    
+==============================
+dataset: Steady
+model  : BrainprintNet
+seed   : 2027
+gpu    : 6
+数据比例-----训练集:验证集:测试集 = (1224, 1, 64, 1000):(306, 1, 64, 1000):(740, 1, 64, 1000)
+=====================data are prepared===============
+累计用时8.3956s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.8857	Val_acc:0.8235	Train_loss:0.368518	Val_loss:0.466456
+  Train_F1:0.8860, BCA:0.8945, EER:0.0774 | Val_F1:0.8226, BCA:0.8540, EER:0.1136
+Epoch:20	Train_acc:0.9762	Val_acc:0.8399	Train_loss:0.152843	Val_loss:0.380380
+  Train_F1:0.9761, BCA:0.9794, EER:0.0160 | Val_F1:0.8341, BCA:0.8643, EER:0.0771
+Epoch:30	Train_acc:0.9959	Val_acc:0.9150	Train_loss:0.082004	Val_loss:0.246993
+  Train_F1:0.9959, BCA:0.9965, EER:0.0025 | Val_F1:0.9143, BCA:0.9282, EER:0.0544
+Epoch:40	Train_acc:1.0000	Val_acc:0.9183	Train_loss:0.035591	Val_loss:0.211541
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9183, BCA:0.9328, EER:0.0476
+Epoch:50	Train_acc:1.0000	Val_acc:0.9150	Train_loss:0.020980	Val_loss:0.201239
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9146, BCA:0.9304, EER:0.0413
+Epoch:60	Train_acc:1.0000	Val_acc:0.9477	Train_loss:0.015762	Val_loss:0.181891
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9476, BCA:0.9561, EER:0.0404
+Epoch:70	Train_acc:1.0000	Val_acc:0.9444	Train_loss:0.009897	Val_loss:0.167278
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9443, BCA:0.9544, EER:0.0336
+Epoch:80	Train_acc:1.0000	Val_acc:0.9510	Train_loss:0.007034	Val_loss:0.160346
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9509, BCA:0.9589, EER:0.0358
+Early stopping triggered at epoch 84.
+--------------------训练完成!--------------------
+总训练轮数-84, 早停轮数-53
+验证集最佳准确率为95.10%
+验证集平均准确率为88.56%
+=====================model are trained===============
+累计用时9892.4032s!
+测试集平均指标为  Acc:70.27%;  F1:70.66%;  BCA:70.98%; EER:20.77%;
+=====================test are done===================
+训练集:验证集:测试集=1224:306:740
+SEED       Acc        F1         BCA        EER       
+2024       0.7176     0.7199     0.7195     0.1935    
+2025       0.6919     0.6953     0.6984     0.2187    
+2026       0.7162     0.7192     0.7197     0.2078    
+2027       0.7027     0.7066     0.7098     0.2077    
+2028       0.0000     0.0000     0.0000     0.0000    
+Avg        0.7071     0.7103     0.7119     0.2069    
+Std        0.0105     0.0101     0.0087     0.0089    
+==============================
+dataset: Steady
+model  : BrainprintNet
+seed   : 2028
+gpu    : 6
+数据比例-----训练集:验证集:测试集 = (1224, 1, 64, 1000):(306, 1, 64, 1000):(740, 1, 64, 1000)
+=====================data are prepared===============
+累计用时22.4017s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.9408	Val_acc:0.8301	Train_loss:0.271511	Val_loss:0.421272
+  Train_F1:0.9409, BCA:0.9464, EER:0.0377 | Val_F1:0.8295, BCA:0.8347, EER:0.1128
+Epoch:20	Train_acc:0.9951	Val_acc:0.8824	Train_loss:0.094199	Val_loss:0.269531
+  Train_F1:0.9951, BCA:0.9959, EER:0.0030 | Val_F1:0.8825, BCA:0.8938, EER:0.0771
+Epoch:30	Train_acc:0.9992	Val_acc:0.9118	Train_loss:0.044713	Val_loss:0.223859
+  Train_F1:0.9992, BCA:0.9993, EER:0.0000 | Val_F1:0.9118, BCA:0.9217, EER:0.0583
+Epoch:40	Train_acc:1.0000	Val_acc:0.9216	Train_loss:0.021123	Val_loss:0.197620
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9217, BCA:0.9261, EER:0.0522
+Epoch:50	Train_acc:1.0000	Val_acc:0.9248	Train_loss:0.012980	Val_loss:0.175965
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9249, BCA:0.9295, EER:0.0467
+Epoch:60	Train_acc:1.0000	Val_acc:0.9346	Train_loss:0.009297	Val_loss:0.169975
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9347, BCA:0.9372, EER:0.0348
+Epoch:70	Train_acc:1.0000	Val_acc:0.9412	Train_loss:0.006589	Val_loss:0.159986
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9412, BCA:0.9430, EER:0.0367
+Epoch:80	Train_acc:1.0000	Val_acc:0.9412	Train_loss:0.005714	Val_loss:0.157415
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9412, BCA:0.9459, EER:0.0394
+Epoch:90	Train_acc:1.0000	Val_acc:0.9477	Train_loss:0.004518	Val_loss:0.152506
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9477, BCA:0.9541, EER:0.0394
+Epoch:100	Train_acc:1.0000	Val_acc:0.9477	Train_loss:0.003164	Val_loss:0.154028
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9477, BCA:0.9513, EER:0.0374
+Epoch:110	Train_acc:1.0000	Val_acc:0.9477	Train_loss:0.002476	Val_loss:0.148897
+  Train_F1:1.0000, BCA:1.0000, EER:0.0000 | Val_F1:0.9476, BCA:0.9513, EER:0.0305
+Early stopping triggered at epoch 112.
+--------------------训练完成!--------------------
+总训练轮数-112, 早停轮数-81
+验证集最佳准确率为95.10%
+验证集平均准确率为90.75%
+=====================model are trained===============
+累计用时12286.0815s!
+测试集平均指标为  Acc:71.89%;  F1:72.15%;  BCA:72.44%; EER:19.60%;
+=====================test are done===================
+训练集:验证集:测试集=1224:306:740
+SEED       Acc        F1         BCA        EER       
+2024       0.7176     0.7199     0.7195     0.1935    
+2025       0.6919     0.6953     0.6984     0.2187    
+2026       0.7162     0.7192     0.7197     0.2078    
+2027       0.7027     0.7066     0.7098     0.2077    
+2028       0.7189     0.7215     0.7244     0.1960    
+Avg        0.7095     0.7125     0.7144     0.2047    
+Std        0.0105     0.0101     0.0093     0.0091    
+--------------------------------------------------
+BrainprintNet(
+  (parallel_conv): ModuleList(
+    (0): Conv2d(12, 12, kernel_size=(1, 7), stride=(1, 1), groups=12, bias=False)
+    (1): Conv2d(12, 12, kernel_size=(1, 15), stride=(1, 1), groups=12, bias=False)
+    (2): Conv2d(12, 12, kernel_size=(1, 31), stride=(1, 1), groups=12, bias=False)
+    (3): Conv2d(12, 12, kernel_size=(1, 63), stride=(1, 1), groups=12, bias=False)
+    (4): Conv2d(12, 12, kernel_size=(1, 127), stride=(1, 1), groups=12, bias=False)
+  )
+  (convblock): Sequential(
+    (0): BatchNorm2d(12, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (1): ReLU()
+    (2): Conv2d(12, 96, kernel_size=(64, 1), stride=(1, 1), bias=False)
+  )
+  (temporalLayer): LogVarLayer()
+  (fc): Sequential(
+    (0): Linear(in_features=480, out_features=3, bias=True)
+    (1): LogSoftmax(dim=1)
+  )
+)

@@ -1,0 +1,344 @@
+==============================
+dataset: Steady
+model  : DeepConvNet
+seed   : 2024
+gpu    : 4
+数据比例-----训练集:验证集:测试集 = (1224, 1, 64, 1000):(306, 1, 64, 1000):(740, 1, 64, 1000)
+=====================data are prepared===============
+累计用时21.5051s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.5074	Val_acc:0.5784	Train_loss:0.798623	Val_loss:0.827950
+  Train_F1:0.3855, BCA:0.5348, EER:0.2627 | Val_F1:0.5334, BCA:0.6366, EER:0.3045
+Epoch:20	Train_acc:0.6135	Val_acc:0.5621	Train_loss:0.741587	Val_loss:0.807340
+  Train_F1:0.5168, BCA:0.6702, EER:0.2710 | Val_F1:0.4313, BCA:0.6306, EER:0.2713
+Epoch:30	Train_acc:0.5987	Val_acc:0.5817	Train_loss:0.567888	Val_loss:0.608132
+  Train_F1:0.5984, BCA:0.6674, EER:0.2738 | Val_F1:0.5030, BCA:0.6409, EER:0.2814
+Epoch:40	Train_acc:0.6201	Val_acc:0.5588	Train_loss:0.553165	Val_loss:0.674696
+  Train_F1:0.5559, BCA:0.6774, EER:0.2607 | Val_F1:0.4967, BCA:0.6258, EER:0.2862
+Epoch:50	Train_acc:0.6817	Val_acc:0.6013	Train_loss:0.519509	Val_loss:0.625824
+  Train_F1:0.6549, BCA:0.7306, EER:0.2438 | Val_F1:0.5429, BCA:0.6549, EER:0.2740
+Epoch:60	Train_acc:0.7113	Val_acc:0.5784	Train_loss:0.498337	Val_loss:0.736923
+  Train_F1:0.6890, BCA:0.7553, EER:0.2259 | Val_F1:0.5453, BCA:0.6374, EER:0.2736
+Epoch:70	Train_acc:0.7426	Val_acc:0.5817	Train_loss:0.473081	Val_loss:0.744575
+  Train_F1:0.7275, BCA:0.7819, EER:0.1971 | Val_F1:0.5476, BCA:0.6372, EER:0.2658
+Epoch:80	Train_acc:0.7878	Val_acc:0.6307	Train_loss:0.437378	Val_loss:0.716497
+  Train_F1:0.7802, BCA:0.8213, EER:0.1643 | Val_F1:0.6087, BCA:0.6813, EER:0.2287
+Epoch:90	Train_acc:0.8207	Val_acc:0.6438	Train_loss:0.380638	Val_loss:0.921693
+  Train_F1:0.8178, BCA:0.8472, EER:0.1366 | Val_F1:0.6420, BCA:0.6962, EER:0.2555
+Epoch:100	Train_acc:0.8528	Val_acc:0.6928	Train_loss:0.350140	Val_loss:0.818623
+  Train_F1:0.8503, BCA:0.8731, EER:0.1160 | Val_F1:0.6885, BCA:0.7431, EER:0.2044
+Epoch:110	Train_acc:0.8824	Val_acc:0.7157	Train_loss:0.284429	Val_loss:0.694248
+  Train_F1:0.8818, BCA:0.8994, EER:0.0815 | Val_F1:0.7124, BCA:0.7575, EER:0.1797
+Epoch:120	Train_acc:0.9030	Val_acc:0.7582	Train_loss:0.250452	Val_loss:0.626547
+  Train_F1:0.9026, BCA:0.9152, EER:0.0720 | Val_F1:0.7581, BCA:0.7913, EER:0.1633
+Epoch:130	Train_acc:0.9276	Val_acc:0.7778	Train_loss:0.185625	Val_loss:0.587020
+  Train_F1:0.9276, BCA:0.9390, EER:0.0511 | Val_F1:0.7767, BCA:0.8094, EER:0.1502
+Epoch:140	Train_acc:0.9268	Val_acc:0.7549	Train_loss:0.187932	Val_loss:0.777538
+  Train_F1:0.9266, BCA:0.9384, EER:0.0507 | Val_F1:0.7550, BCA:0.7866, EER:0.1454
+Epoch:150	Train_acc:0.9507	Val_acc:0.7647	Train_loss:0.133703	Val_loss:0.769942
+  Train_F1:0.9506, BCA:0.9592, EER:0.0318 | Val_F1:0.7645, BCA:0.7896, EER:0.1557
+Epoch:160	Train_acc:0.9597	Val_acc:0.7810	Train_loss:0.101980	Val_loss:0.761102
+  Train_F1:0.9597, BCA:0.9657, EER:0.0281 | Val_F1:0.7806, BCA:0.8130, EER:0.1461
+Epoch:170	Train_acc:0.9696	Val_acc:0.7876	Train_loss:0.091875	Val_loss:0.734501
+  Train_F1:0.9696, BCA:0.9731, EER:0.0220 | Val_F1:0.7875, BCA:0.8192, EER:0.1377
+Epoch:180	Train_acc:0.9663	Val_acc:0.8333	Train_loss:0.091071	Val_loss:0.786045
+  Train_F1:0.9663, BCA:0.9698, EER:0.0221 | Val_F1:0.8332, BCA:0.8593, EER:0.1196
+Epoch:190	Train_acc:0.9638	Val_acc:0.8105	Train_loss:0.105037	Val_loss:0.815844
+  Train_F1:0.9638, BCA:0.9692, EER:0.0262 | Val_F1:0.8113, BCA:0.8316, EER:0.1353
+Epoch:200	Train_acc:0.9753	Val_acc:0.7876	Train_loss:0.074720	Val_loss:0.945853
+  Train_F1:0.9753, BCA:0.9795, EER:0.0154 | Val_F1:0.7869, BCA:0.8140, EER:0.1211
+Epoch:210	Train_acc:0.9819	Val_acc:0.7941	Train_loss:0.052920	Val_loss:0.917354
+  Train_F1:0.9819, BCA:0.9841, EER:0.0126 | Val_F1:0.7933, BCA:0.8196, EER:0.1297
+Early stopping triggered at epoch 211.
+--------------------训练完成!--------------------
+总训练轮数-211, 早停轮数-180
+验证集最佳准确率为83.33%
+验证集平均准确率为68.49%
+=====================model are trained===============
+累计用时16701.8791s!
+测试集平均指标为  Acc:57.03%;  F1:57.56%;  BCA:60.10%; EER:30.65%;
+=====================test are done===================
+训练集:验证集:测试集=1224:306:740
+SEED       Acc        F1         BCA        EER       
+2024       0.5703     0.5756     0.6010     0.3065    
+2025       0.0000     0.0000     0.0000     0.0000    
+2026       0.0000     0.0000     0.0000     0.0000    
+2027       0.0000     0.0000     0.0000     0.0000    
+2028       0.0000     0.0000     0.0000     0.0000    
+Avg        0.5703     0.5756     0.6010     0.3065    
+Std        0.0000     0.0000     0.0000     0.0000    
+==============================
+dataset: Steady
+model  : DeepConvNet
+seed   : 2025
+gpu    : 4
+数据比例-----训练集:验证集:测试集 = (1224, 1, 64, 1000):(306, 1, 64, 1000):(740, 1, 64, 1000)
+=====================data are prepared===============
+累计用时42.6341s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.7360	Val_acc:0.5850	Train_loss:0.574453	Val_loss:0.722630
+  Train_F1:0.7365, BCA:0.7640, EER:0.1806 | Val_F1:0.5863, BCA:0.6389, EER:0.2977
+Epoch:20	Train_acc:0.8396	Val_acc:0.6765	Train_loss:0.355958	Val_loss:0.691562
+  Train_F1:0.8399, BCA:0.8627, EER:0.1109 | Val_F1:0.6665, BCA:0.7287, EER:0.2313
+Epoch:30	Train_acc:0.8865	Val_acc:0.7288	Train_loss:0.255591	Val_loss:0.687333
+  Train_F1:0.8865, BCA:0.9033, EER:0.0765 | Val_F1:0.7222, BCA:0.7720, EER:0.1914
+Epoch:40	Train_acc:0.9194	Val_acc:0.7418	Train_loss:0.196306	Val_loss:0.668300
+  Train_F1:0.9195, BCA:0.9310, EER:0.0534 | Val_F1:0.7389, BCA:0.7820, EER:0.1750
+Epoch:50	Train_acc:0.9581	Val_acc:0.7614	Train_loss:0.110061	Val_loss:0.758262
+  Train_F1:0.9580, BCA:0.9638, EER:0.0295 | Val_F1:0.7606, BCA:0.7963, EER:0.1663
+Epoch:60	Train_acc:0.9655	Val_acc:0.7614	Train_loss:0.109268	Val_loss:0.785505
+  Train_F1:0.9654, BCA:0.9700, EER:0.0248 | Val_F1:0.7593, BCA:0.8005, EER:0.1649
+Epoch:70	Train_acc:0.9696	Val_acc:0.7843	Train_loss:0.077020	Val_loss:0.837152
+  Train_F1:0.9696, BCA:0.9746, EER:0.0197 | Val_F1:0.7810, BCA:0.8176, EER:0.1617
+Epoch:80	Train_acc:0.9548	Val_acc:0.7712	Train_loss:0.106386	Val_loss:0.804894
+  Train_F1:0.9548, BCA:0.9596, EER:0.0317 | Val_F1:0.7703, BCA:0.8050, EER:0.1602
+Epoch:90	Train_acc:0.9827	Val_acc:0.7712	Train_loss:0.049661	Val_loss:0.786495
+  Train_F1:0.9827, BCA:0.9856, EER:0.0109 | Val_F1:0.7712, BCA:0.8046, EER:0.1561
+Epoch:100	Train_acc:0.9753	Val_acc:0.7843	Train_loss:0.066928	Val_loss:0.846775
+  Train_F1:0.9753, BCA:0.9788, EER:0.0171 | Val_F1:0.7841, BCA:0.8149, EER:0.1556
+Epoch:110	Train_acc:0.9786	Val_acc:0.7745	Train_loss:0.066728	Val_loss:0.802515
+  Train_F1:0.9786, BCA:0.9823, EER:0.0148 | Val_F1:0.7736, BCA:0.8086, EER:0.1454
+Epoch:120	Train_acc:0.9663	Val_acc:0.7810	Train_loss:0.078190	Val_loss:0.867754
+  Train_F1:0.9663, BCA:0.9705, EER:0.0224 | Val_F1:0.7807, BCA:0.8128, EER:0.1503
+Epoch:130	Train_acc:0.9803	Val_acc:0.7712	Train_loss:0.061898	Val_loss:0.812849
+  Train_F1:0.9803, BCA:0.9835, EER:0.0134 | Val_F1:0.7694, BCA:0.8060, EER:0.1432
+Early stopping triggered at epoch 140.
+--------------------训练完成!--------------------
+总训练轮数-140, 早停轮数-109
+验证集最佳准确率为79.74%
+验证集平均准确率为72.30%
+=====================model are trained===============
+累计用时10854.8662s!
+测试集平均指标为  Acc:59.32%;  F1:59.86%;  BCA:62.87%; EER:27.92%;
+=====================test are done===================
+训练集:验证集:测试集=1224:306:740
+SEED       Acc        F1         BCA        EER       
+2024       0.5703     0.5756     0.6010     0.3065    
+2025       0.5932     0.5986     0.6287     0.2792    
+2026       0.0000     0.0000     0.0000     0.0000    
+2027       0.0000     0.0000     0.0000     0.0000    
+2028       0.0000     0.0000     0.0000     0.0000    
+Avg        0.5818     0.5871     0.6148     0.2928    
+Std        0.0115     0.0115     0.0139     0.0137    
+==============================
+dataset: Steady
+model  : DeepConvNet
+seed   : 2026
+gpu    : 4
+数据比例-----训练集:验证集:测试集 = (1224, 1, 64, 1000):(306, 1, 64, 1000):(740, 1, 64, 1000)
+=====================data are prepared===============
+累计用时41.3076s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.6768	Val_acc:0.5654	Train_loss:0.622151	Val_loss:0.757459
+  Train_F1:0.6784, BCA:0.7094, EER:0.2232 | Val_F1:0.5518, BCA:0.6349, EER:0.2771
+Epoch:20	Train_acc:0.7944	Val_acc:0.6144	Train_loss:0.431743	Val_loss:0.741549
+  Train_F1:0.7950, BCA:0.8235, EER:0.1357 | Val_F1:0.6094, BCA:0.6742, EER:0.2500
+Epoch:30	Train_acc:0.8692	Val_acc:0.6667	Train_loss:0.314677	Val_loss:0.780577
+  Train_F1:0.8693, BCA:0.8861, EER:0.0910 | Val_F1:0.6661, BCA:0.7124, EER:0.2363
+Epoch:40	Train_acc:0.9186	Val_acc:0.6732	Train_loss:0.215700	Val_loss:0.898947
+  Train_F1:0.9187, BCA:0.9289, EER:0.0547 | Val_F1:0.6701, BCA:0.7230, EER:0.2194
+Epoch:50	Train_acc:0.9465	Val_acc:0.7288	Train_loss:0.137149	Val_loss:0.862511
+  Train_F1:0.9466, BCA:0.9542, EER:0.0383 | Val_F1:0.7283, BCA:0.7692, EER:0.1784
+Epoch:60	Train_acc:0.9482	Val_acc:0.6765	Train_loss:0.137085	Val_loss:1.176228
+  Train_F1:0.9482, BCA:0.9548, EER:0.0349 | Val_F1:0.6712, BCA:0.7261, EER:0.2089
+Epoch:70	Train_acc:0.9688	Val_acc:0.7255	Train_loss:0.086470	Val_loss:0.935969
+  Train_F1:0.9687, BCA:0.9742, EER:0.0213 | Val_F1:0.7259, BCA:0.7643, EER:0.1809
+Epoch:80	Train_acc:0.9696	Val_acc:0.7582	Train_loss:0.089524	Val_loss:0.924916
+  Train_F1:0.9696, BCA:0.9719, EER:0.0223 | Val_F1:0.7587, BCA:0.7886, EER:0.1739
+Epoch:90	Train_acc:0.9811	Val_acc:0.7353	Train_loss:0.054805	Val_loss:0.998523
+  Train_F1:0.9811, BCA:0.9830, EER:0.0116 | Val_F1:0.7328, BCA:0.7737, EER:0.1708
+Epoch:100	Train_acc:0.9827	Val_acc:0.7451	Train_loss:0.051264	Val_loss:1.038612
+  Train_F1:0.9827, BCA:0.9843, EER:0.0120 | Val_F1:0.7441, BCA:0.7835, EER:0.1817
+Epoch:110	Train_acc:0.9803	Val_acc:0.7778	Train_loss:0.050375	Val_loss:0.936197
+  Train_F1:0.9803, BCA:0.9836, EER:0.0114 | Val_F1:0.7779, BCA:0.8095, EER:0.1514
+Epoch:120	Train_acc:0.9803	Val_acc:0.7516	Train_loss:0.050657	Val_loss:0.992839
+  Train_F1:0.9803, BCA:0.9828, EER:0.0128 | Val_F1:0.7498, BCA:0.7894, EER:0.1613
+Epoch:130	Train_acc:0.9794	Val_acc:0.7386	Train_loss:0.061477	Val_loss:1.277704
+  Train_F1:0.9795, BCA:0.9807, EER:0.0125 | Val_F1:0.7345, BCA:0.7688, EER:0.1667
+Epoch:140	Train_acc:0.9852	Val_acc:0.7843	Train_loss:0.052650	Val_loss:0.909161
+  Train_F1:0.9852, BCA:0.9863, EER:0.0122 | Val_F1:0.7829, BCA:0.8146, EER:0.1466
+Early stopping triggered at epoch 149.
+--------------------训练完成!--------------------
+总训练轮数-149, 早停轮数-118
+验证集最佳准确率为80.72%
+验证集平均准确率为70.37%
+=====================model are trained===============
+累计用时10482.3576s!
+测试集平均指标为  Acc:58.38%;  F1:57.44%;  BCA:61.84%; EER:28.68%;
+=====================test are done===================
+训练集:验证集:测试集=1224:306:740
+SEED       Acc        F1         BCA        EER       
+2024       0.5703     0.5756     0.6010     0.3065    
+2025       0.5932     0.5986     0.6287     0.2792    
+2026       0.5838     0.5744     0.6184     0.2868    
+2027       0.0000     0.0000     0.0000     0.0000    
+2028       0.0000     0.0000     0.0000     0.0000    
+Avg        0.5824     0.5829     0.6160     0.2908    
+Std        0.0094     0.0112     0.0115     0.0115    
+==============================
+dataset: Steady
+model  : DeepConvNet
+seed   : 2027
+gpu    : 4
+数据比例-----训练集:验证集:测试集 = (1224, 1, 64, 1000):(306, 1, 64, 1000):(740, 1, 64, 1000)
+=====================data are prepared===============
+累计用时19.3454s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.6587	Val_acc:0.5327	Train_loss:0.761694	Val_loss:0.837805
+  Train_F1:0.6610, BCA:0.6941, EER:0.2208 | Val_F1:0.5317, BCA:0.5851, EER:0.2996
+Epoch:20	Train_acc:0.7730	Val_acc:0.5915	Train_loss:0.604763	Val_loss:0.825095
+  Train_F1:0.7741, BCA:0.7979, EER:0.1460 | Val_F1:0.5910, BCA:0.6464, EER:0.2646
+Epoch:30	Train_acc:0.8569	Val_acc:0.6601	Train_loss:0.445934	Val_loss:0.829061
+  Train_F1:0.8571, BCA:0.8728, EER:0.0924 | Val_F1:0.6576, BCA:0.7026, EER:0.2199
+Epoch:40	Train_acc:0.8964	Val_acc:0.7059	Train_loss:0.336450	Val_loss:0.835791
+  Train_F1:0.8965, BCA:0.9089, EER:0.0688 | Val_F1:0.7002, BCA:0.7331, EER:0.2075
+Epoch:50	Train_acc:0.9178	Val_acc:0.7059	Train_loss:0.284206	Val_loss:0.808274
+  Train_F1:0.9179, BCA:0.9247, EER:0.0564 | Val_F1:0.7063, BCA:0.7360, EER:0.1910
+Epoch:60	Train_acc:0.9498	Val_acc:0.7484	Train_loss:0.208663	Val_loss:0.815280
+  Train_F1:0.9498, BCA:0.9576, EER:0.0337 | Val_F1:0.7497, BCA:0.7660, EER:0.1685
+Epoch:70	Train_acc:0.9589	Val_acc:0.7745	Train_loss:0.164465	Val_loss:0.773914
+  Train_F1:0.9589, BCA:0.9637, EER:0.0246 | Val_F1:0.7741, BCA:0.7970, EER:0.1600
+Epoch:80	Train_acc:0.9597	Val_acc:0.7941	Train_loss:0.153022	Val_loss:0.828269
+  Train_F1:0.9597, BCA:0.9651, EER:0.0296 | Val_F1:0.7922, BCA:0.8169, EER:0.1492
+Epoch:90	Train_acc:0.9671	Val_acc:0.7745	Train_loss:0.130315	Val_loss:0.808263
+  Train_F1:0.9671, BCA:0.9698, EER:0.0223 | Val_F1:0.7748, BCA:0.7952, EER:0.1506
+Epoch:100	Train_acc:0.9794	Val_acc:0.7712	Train_loss:0.100977	Val_loss:0.773961
+  Train_F1:0.9794, BCA:0.9802, EER:0.0147 | Val_F1:0.7715, BCA:0.7893, EER:0.1411
+Epoch:110	Train_acc:0.9786	Val_acc:0.8137	Train_loss:0.090440	Val_loss:0.763092
+  Train_F1:0.9786, BCA:0.9815, EER:0.0138 | Val_F1:0.8135, BCA:0.8267, EER:0.1309
+Epoch:120	Train_acc:0.9811	Val_acc:0.7941	Train_loss:0.086595	Val_loss:0.842405
+  Train_F1:0.9811, BCA:0.9822, EER:0.0128 | Val_F1:0.7937, BCA:0.8050, EER:0.1429
+Epoch:130	Train_acc:0.9827	Val_acc:0.7745	Train_loss:0.070760	Val_loss:0.744489
+  Train_F1:0.9827, BCA:0.9843, EER:0.0109 | Val_F1:0.7749, BCA:0.7987, EER:0.1418
+Epoch:140	Train_acc:0.9910	Val_acc:0.8137	Train_loss:0.052557	Val_loss:0.757744
+  Train_F1:0.9910, BCA:0.9911, EER:0.0069 | Val_F1:0.8131, BCA:0.8352, EER:0.1494
+Early stopping triggered at epoch 149.
+--------------------训练完成!--------------------
+总训练轮数-149, 早停轮数-118
+验证集最佳准确率为82.35%
+验证集平均准确率为71.65%
+=====================model are trained===============
+累计用时7398.6489s!
+测试集平均指标为  Acc:57.57%;  F1:57.97%;  BCA:60.67%; EER:31.16%;
+=====================test are done===================
+训练集:验证集:测试集=1224:306:740
+SEED       Acc        F1         BCA        EER       
+2024       0.5703     0.5756     0.6010     0.3065    
+2025       0.5932     0.5986     0.6287     0.2792    
+2026       0.5838     0.5744     0.6184     0.2868    
+2027       0.5757     0.5797     0.6067     0.3116    
+2028       0.0000     0.0000     0.0000     0.0000    
+Avg        0.5807     0.5821     0.6137     0.2960    
+Std        0.0087     0.0098     0.0107     0.0134    
+==============================
+dataset: Steady
+model  : DeepConvNet
+seed   : 2028
+gpu    : 4
+数据比例-----训练集:验证集:测试集 = (1224, 1, 64, 1000):(306, 1, 64, 1000):(740, 1, 64, 1000)
+=====================data are prepared===============
+累计用时10.7600s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.5715	Val_acc:0.5392	Train_loss:0.782098	Val_loss:0.819898
+  Train_F1:0.5724, BCA:0.6257, EER:0.2778 | Val_F1:0.4984, BCA:0.5999, EER:0.2939
+Epoch:20	Train_acc:0.5962	Val_acc:0.5686	Train_loss:0.723777	Val_loss:0.770850
+  Train_F1:0.5346, BCA:0.6557, EER:0.2669 | Val_F1:0.5421, BCA:0.6374, EER:0.2868
+Epoch:30	Train_acc:0.6151	Val_acc:0.5588	Train_loss:0.682615	Val_loss:0.729026
+  Train_F1:0.5327, BCA:0.6747, EER:0.2510 | Val_F1:0.5387, BCA:0.6290, EER:0.2850
+Epoch:40	Train_acc:0.6406	Val_acc:0.5850	Train_loss:0.657778	Val_loss:0.786342
+  Train_F1:0.5668, BCA:0.6942, EER:0.2269 | Val_F1:0.5560, BCA:0.6200, EER:0.2909
+Epoch:50	Train_acc:0.6513	Val_acc:0.5784	Train_loss:0.632424	Val_loss:0.712247
+  Train_F1:0.6052, BCA:0.7036, EER:0.2144 | Val_F1:0.5466, BCA:0.6381, EER:0.2675
+Epoch:60	Train_acc:0.6719	Val_acc:0.6078	Train_loss:0.604851	Val_loss:0.698182
+  Train_F1:0.6251, BCA:0.7221, EER:0.1913 | Val_F1:0.6031, BCA:0.6628, EER:0.2711
+Epoch:70	Train_acc:0.7368	Val_acc:0.6405	Train_loss:0.566118	Val_loss:0.679948
+  Train_F1:0.7241, BCA:0.7780, EER:0.1551 | Val_F1:0.6170, BCA:0.6868, EER:0.2343
+Epoch:80	Train_acc:0.7434	Val_acc:0.6242	Train_loss:0.492254	Val_loss:0.798104
+  Train_F1:0.7367, BCA:0.7824, EER:0.1504 | Val_F1:0.6091, BCA:0.6874, EER:0.2273
+Epoch:90	Train_acc:0.7993	Val_acc:0.6569	Train_loss:0.390128	Val_loss:0.901508
+  Train_F1:0.7937, BCA:0.8288, EER:0.1108 | Val_F1:0.6474, BCA:0.7062, EER:0.2256
+Epoch:100	Train_acc:0.8553	Val_acc:0.7157	Train_loss:0.310065	Val_loss:0.916483
+  Train_F1:0.8536, BCA:0.8743, EER:0.0875 | Val_F1:0.7110, BCA:0.7548, EER:0.1990
+Epoch:110	Train_acc:0.8956	Val_acc:0.7190	Train_loss:0.232370	Val_loss:0.998435
+  Train_F1:0.8946, BCA:0.9087, EER:0.0667 | Val_F1:0.7149, BCA:0.7493, EER:0.2147
+Epoch:120	Train_acc:0.9334	Val_acc:0.7386	Train_loss:0.157811	Val_loss:1.243187
+  Train_F1:0.9330, BCA:0.9426, EER:0.0400 | Val_F1:0.7319, BCA:0.7743, EER:0.1942
+Epoch:130	Train_acc:0.9342	Val_acc:0.7778	Train_loss:0.148607	Val_loss:0.955153
+  Train_F1:0.9340, BCA:0.9449, EER:0.0398 | Val_F1:0.7772, BCA:0.8030, EER:0.1673
+Epoch:140	Train_acc:0.9556	Val_acc:0.7255	Train_loss:0.106916	Val_loss:1.296370
+  Train_F1:0.9555, BCA:0.9628, EER:0.0245 | Val_F1:0.7131, BCA:0.7591, EER:0.1710
+Epoch:150	Train_acc:0.9646	Val_acc:0.7680	Train_loss:0.094931	Val_loss:0.835457
+  Train_F1:0.9646, BCA:0.9698, EER:0.0245 | Val_F1:0.7655, BCA:0.7915, EER:0.1560
+Epoch:160	Train_acc:0.9688	Val_acc:0.7941	Train_loss:0.085289	Val_loss:0.880008
+  Train_F1:0.9687, BCA:0.9731, EER:0.0163 | Val_F1:0.7957, BCA:0.8075, EER:0.1580
+Epoch:170	Train_acc:0.9720	Val_acc:0.8105	Train_loss:0.068152	Val_loss:0.925152
+  Train_F1:0.9720, BCA:0.9767, EER:0.0182 | Val_F1:0.8104, BCA:0.8299, EER:0.1423
+Epoch:180	Train_acc:0.9762	Val_acc:0.7810	Train_loss:0.071522	Val_loss:1.117115
+  Train_F1:0.9761, BCA:0.9794, EER:0.0160 | Val_F1:0.7787, BCA:0.8061, EER:0.1457
+Epoch:190	Train_acc:0.9860	Val_acc:0.8105	Train_loss:0.047198	Val_loss:0.858148
+  Train_F1:0.9860, BCA:0.9884, EER:0.0114 | Val_F1:0.8117, BCA:0.8209, EER:0.1298
+Epoch:200	Train_acc:0.9852	Val_acc:0.8203	Train_loss:0.043597	Val_loss:0.770265
+  Train_F1:0.9852, BCA:0.9877, EER:0.0104 | Val_F1:0.8201, BCA:0.8426, EER:0.1264
+Epoch:210	Train_acc:0.9803	Val_acc:0.8366	Train_loss:0.057411	Val_loss:0.939788
+  Train_F1:0.9803, BCA:0.9829, EER:0.0131 | Val_F1:0.8370, BCA:0.8545, EER:0.1310
+Epoch:220	Train_acc:0.9819	Val_acc:0.8137	Train_loss:0.055409	Val_loss:0.921290
+  Train_F1:0.9819, BCA:0.9835, EER:0.0111 | Val_F1:0.8144, BCA:0.8299, EER:0.1140
+Epoch:230	Train_acc:0.9860	Val_acc:0.8203	Train_loss:0.046135	Val_loss:0.847308
+  Train_F1:0.9860, BCA:0.9884, EER:0.0097 | Val_F1:0.8202, BCA:0.8394, EER:0.1307
+Epoch:240	Train_acc:0.9819	Val_acc:0.8203	Train_loss:0.042965	Val_loss:0.990192
+  Train_F1:0.9819, BCA:0.9849, EER:0.0108 | Val_F1:0.8205, BCA:0.8378, EER:0.1127
+Early stopping triggered at epoch 241.
+--------------------训练完成!--------------------
+总训练轮数-241, 早停轮数-210
+验证集最佳准确率为83.66%
+验证集平均准确率为70.52%
+=====================model are trained===============
+累计用时10514.0115s!
+测试集平均指标为  Acc:58.24%;  F1:58.41%;  BCA:62.37%; EER:29.97%;
+=====================test are done===================
+训练集:验证集:测试集=1224:306:740
+SEED       Acc        F1         BCA        EER       
+2024       0.5703     0.5756     0.6010     0.3065    
+2025       0.5932     0.5986     0.6287     0.2792    
+2026       0.5838     0.5744     0.6184     0.2868    
+2027       0.5757     0.5797     0.6067     0.3116    
+2028       0.5824     0.5841     0.6237     0.2997    
+Avg        0.5811     0.5825     0.6157     0.2968    
+Std        0.0078     0.0088     0.0104     0.0121    
+--------------------------------------------------
+DeepConvNet(
+  (block1): Sequential(
+    (0): Conv2d(1, 25, kernel_size=(1, 5), stride=(1, 1))
+    (1): Conv2d(25, 25, kernel_size=(64, 1), stride=(1, 1))
+    (2): BatchNorm2d(25, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (3): ELU(alpha=1.0)
+    (4): MaxPool2d(kernel_size=(1, 2), stride=(1, 2), padding=0, dilation=1, ceil_mode=False)
+    (5): Dropout(p=0.5, inplace=False)
+  )
+  (block2): Sequential(
+    (0): Conv2d(25, 50, kernel_size=(1, 5), stride=(1, 1))
+    (1): BatchNorm2d(50, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (2): ELU(alpha=1.0)
+    (3): MaxPool2d(kernel_size=(1, 2), stride=(1, 2), padding=0, dilation=1, ceil_mode=False)
+    (4): Dropout(p=0.5, inplace=False)
+  )
+  (block3): Sequential(
+    (0): Conv2d(50, 100, kernel_size=(1, 5), stride=(1, 1))
+    (1): BatchNorm2d(100, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (2): ELU(alpha=1.0)
+    (3): MaxPool2d(kernel_size=(1, 2), stride=(1, 2), padding=0, dilation=1, ceil_mode=False)
+    (4): Dropout(p=0.5, inplace=False)
+  )
+  (clf): Classifier(
+    (flatten): Flatten(start_dim=1, end_dim=-1)
+    (fc1): Linear(in_features=12100, out_features=50, bias=True)
+    (relu): ReLU()
+    (fc2): Linear(in_features=50, out_features=3, bias=True)
+    (clf): Sequential(
+      (0): Flatten(start_dim=1, end_dim=-1)
+      (1): Linear(in_features=12100, out_features=50, bias=True)
+      (2): ReLU()
+      (3): Linear(in_features=50, out_features=3, bias=True)
+    )
+  )
+)

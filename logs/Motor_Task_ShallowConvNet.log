@@ -1,0 +1,235 @@
+==============================
+dataset: Motor
+model  : ShallowConvNet
+seed   : 2024
+gpu    : 6
+数据比例-----训练集:验证集:测试集 = (3862, 1, 64, 1000):(966, 1, 64, 1000):(2400, 1, 64, 1000)
+=====================data are prepared===============
+累计用时22.2598s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.8242	Val_acc:0.6936	Train_loss:0.452213	Val_loss:0.879532
+  Train_F1:0.8240, BCA:0.8242, EER:0.1271 | Val_F1:0.6921, BCA:0.6936, EER:0.2006
+Epoch:20	Train_acc:0.9497	Val_acc:0.7319	Train_loss:0.143904	Val_loss:0.944542
+  Train_F1:0.9497, BCA:0.9497, EER:0.0357 | Val_F1:0.7323, BCA:0.7319, EER:0.1837
+Epoch:30	Train_acc:0.9688	Val_acc:0.7598	Train_loss:0.088699	Val_loss:1.014673
+  Train_F1:0.9687, BCA:0.9688, EER:0.0223 | Val_F1:0.7597, BCA:0.7598, EER:0.1742
+Epoch:40	Train_acc:0.9849	Val_acc:0.7526	Train_loss:0.050427	Val_loss:1.078489
+  Train_F1:0.9849, BCA:0.9849, EER:0.0104 | Val_F1:0.7523, BCA:0.7526, EER:0.1711
+Epoch:50	Train_acc:0.9872	Val_acc:0.7650	Train_loss:0.042610	Val_loss:0.910865
+  Train_F1:0.9872, BCA:0.9872, EER:0.0088 | Val_F1:0.7656, BCA:0.7650, EER:0.1708
+Epoch:60	Train_acc:0.9909	Val_acc:0.7505	Train_loss:0.029334	Val_loss:1.004907
+  Train_F1:0.9909, BCA:0.9909, EER:0.0064 | Val_F1:0.7490, BCA:0.7505, EER:0.1721
+Epoch:70	Train_acc:0.9885	Val_acc:0.7495	Train_loss:0.035478	Val_loss:1.112543
+  Train_F1:0.9885, BCA:0.9885, EER:0.0080 | Val_F1:0.7502, BCA:0.7495, EER:0.1809
+Epoch:80	Train_acc:0.9911	Val_acc:0.7453	Train_loss:0.024788	Val_loss:1.481937
+  Train_F1:0.9911, BCA:0.9911, EER:0.0056 | Val_F1:0.7469, BCA:0.7453, EER:0.1848
+Early stopping triggered at epoch 90.
+--------------------训练完成!--------------------
+总训练轮数-90, 早停轮数-59
+验证集最佳准确率为77.85%
+验证集平均准确率为73.74%
+=====================model are trained===============
+累计用时19268.2368s!
+测试集平均指标为  Acc:67.46%;  F1:67.46%;  BCA:67.46%; EER:24.18%;
+=====================test are done===================
+训练集:验证集:测试集=3862:966:2400
+SEED       Acc        F1         BCA        EER       
+2024       0.6746     0.6746     0.6746     0.2418    
+2025       0.0000     0.0000     0.0000     0.0000    
+2026       0.0000     0.0000     0.0000     0.0000    
+2027       0.0000     0.0000     0.0000     0.0000    
+2028       0.0000     0.0000     0.0000     0.0000    
+Avg        0.6746     0.6746     0.6746     0.2418    
+Std        0.0000     0.0000     0.0000     0.0000    
+==============================
+dataset: Motor
+model  : ShallowConvNet
+seed   : 2025
+gpu    : 6
+数据比例-----训练集:验证集:测试集 = (3862, 1, 64, 1000):(966, 1, 64, 1000):(2400, 1, 64, 1000)
+=====================data are prepared===============
+累计用时81.8672s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.8063	Val_acc:0.7122	Train_loss:0.486358	Val_loss:0.712679
+  Train_F1:0.8060, BCA:0.8063, EER:0.1360 | Val_F1:0.7133, BCA:0.7122, EER:0.2109
+Epoch:20	Train_acc:0.9391	Val_acc:0.7640	Train_loss:0.176107	Val_loss:0.692802
+  Train_F1:0.9390, BCA:0.9391, EER:0.0437 | Val_F1:0.7636, BCA:0.7640, EER:0.1708
+Epoch:30	Train_acc:0.9667	Val_acc:0.7505	Train_loss:0.095917	Val_loss:0.796460
+  Train_F1:0.9667, BCA:0.9667, EER:0.0232 | Val_F1:0.7490, BCA:0.7505, EER:0.1698
+Epoch:40	Train_acc:0.9831	Val_acc:0.7578	Train_loss:0.054272	Val_loss:0.855242
+  Train_F1:0.9831, BCA:0.9831, EER:0.0117 | Val_F1:0.7580, BCA:0.7578, EER:0.1643
+Epoch:50	Train_acc:0.9859	Val_acc:0.7505	Train_loss:0.042940	Val_loss:0.955843
+  Train_F1:0.9859, BCA:0.9859, EER:0.0097 | Val_F1:0.7497, BCA:0.7505, EER:0.1788
+Epoch:60	Train_acc:0.9911	Val_acc:0.7598	Train_loss:0.028301	Val_loss:0.995253
+  Train_F1:0.9911, BCA:0.9911, EER:0.0056 | Val_F1:0.7591, BCA:0.7598, EER:0.1708
+Epoch:70	Train_acc:0.9893	Val_acc:0.7516	Train_loss:0.032638	Val_loss:1.063510
+  Train_F1:0.9893, BCA:0.9893, EER:0.0070 | Val_F1:0.7521, BCA:0.7516, EER:0.1770
+Early stopping triggered at epoch 77.
+--------------------训练完成!--------------------
+总训练轮数-77, 早停轮数-46
+验证集最佳准确率为77.23%
+验证集平均准确率为73.46%
+=====================model are trained===============
+累计用时16552.2288s!
+测试集平均指标为  Acc:65.71%;  F1:65.75%;  BCA:65.71%; EER:24.77%;
+=====================test are done===================
+训练集:验证集:测试集=3862:966:2400
+SEED       Acc        F1         BCA        EER       
+2024       0.6746     0.6746     0.6746     0.2418    
+2025       0.6571     0.6575     0.6571     0.2477    
+2026       0.0000     0.0000     0.0000     0.0000    
+2027       0.0000     0.0000     0.0000     0.0000    
+2028       0.0000     0.0000     0.0000     0.0000    
+Avg        0.6658     0.6660     0.6658     0.2447    
+Std        0.0087     0.0085     0.0087     0.0030    
+==============================
+dataset: Motor
+model  : ShallowConvNet
+seed   : 2026
+gpu    : 6
+数据比例-----训练集:验证集:测试集 = (3862, 1, 64, 1000):(966, 1, 64, 1000):(2400, 1, 64, 1000)
+=====================data are prepared===============
+累计用时77.6308s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.8510	Val_acc:0.7195	Train_loss:0.385014	Val_loss:0.677438
+  Train_F1:0.8509, BCA:0.8511, EER:0.1071 | Val_F1:0.7172, BCA:0.7195, EER:0.1959
+Epoch:20	Train_acc:0.9508	Val_acc:0.7567	Train_loss:0.136718	Val_loss:0.765210
+  Train_F1:0.9508, BCA:0.9508, EER:0.0348 | Val_F1:0.7575, BCA:0.7567, EER:0.1817
+Epoch:30	Train_acc:0.9771	Val_acc:0.7277	Train_loss:0.070675	Val_loss:0.921590
+  Train_F1:0.9771, BCA:0.9771, EER:0.0167 | Val_F1:0.7287, BCA:0.7277, EER:0.1913
+Epoch:40	Train_acc:0.9833	Val_acc:0.7588	Train_loss:0.049635	Val_loss:0.932149
+  Train_F1:0.9833, BCA:0.9833, EER:0.0109 | Val_F1:0.7595, BCA:0.7588, EER:0.1752
+Epoch:50	Train_acc:0.9883	Val_acc:0.7505	Train_loss:0.035031	Val_loss:1.050472
+  Train_F1:0.9883, BCA:0.9883, EER:0.0081 | Val_F1:0.7514, BCA:0.7505, EER:0.1744
+Epoch:60	Train_acc:0.9917	Val_acc:0.7516	Train_loss:0.026851	Val_loss:1.041708
+  Train_F1:0.9917, BCA:0.9917, EER:0.0051 | Val_F1:0.7511, BCA:0.7516, EER:0.1739
+Epoch:70	Train_acc:0.9878	Val_acc:0.7567	Train_loss:0.036655	Val_loss:1.134454
+  Train_F1:0.9878, BCA:0.9878, EER:0.0085 | Val_F1:0.7575, BCA:0.7567, EER:0.1718
+Epoch:80	Train_acc:0.9914	Val_acc:0.7598	Train_loss:0.027396	Val_loss:1.196632
+  Train_F1:0.9914, BCA:0.9914, EER:0.0066 | Val_F1:0.7593, BCA:0.7598, EER:0.1708
+Epoch:90	Train_acc:0.9896	Val_acc:0.7381	Train_loss:0.032627	Val_loss:1.151827
+  Train_F1:0.9896, BCA:0.9896, EER:0.0076 | Val_F1:0.7389, BCA:0.7381, EER:0.1814
+Early stopping triggered at epoch 92.
+--------------------训练完成!--------------------
+总训练轮数-92, 早停轮数-61
+验证集最佳准确率为77.23%
+验证集平均准确率为74.01%
+=====================model are trained===============
+累计用时19823.1291s!
+测试集平均指标为  Acc:65.88%;  F1:65.74%;  BCA:65.88%; EER:24.94%;
+=====================test are done===================
+训练集:验证集:测试集=3862:966:2400
+SEED       Acc        F1         BCA        EER       
+2024       0.6746     0.6746     0.6746     0.2418    
+2025       0.6571     0.6575     0.6571     0.2477    
+2026       0.6587     0.6574     0.6588     0.2494    
+2027       0.0000     0.0000     0.0000     0.0000    
+2028       0.0000     0.0000     0.0000     0.0000    
+Avg        0.6635     0.6632     0.6635     0.2463    
+Std        0.0079     0.0081     0.0079     0.0033    
+==============================
+dataset: Motor
+model  : ShallowConvNet
+seed   : 2027
+gpu    : 6
+数据比例-----训练集:验证集:测试集 = (3862, 1, 64, 1000):(966, 1, 64, 1000):(2400, 1, 64, 1000)
+=====================data are prepared===============
+累计用时57.9688s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.8026	Val_acc:0.7153	Train_loss:0.507568	Val_loss:0.697142
+  Train_F1:0.8026, BCA:0.8026, EER:0.1428 | Val_F1:0.7142, BCA:0.7153, EER:0.2034
+Epoch:20	Train_acc:0.9352	Val_acc:0.7195	Train_loss:0.183352	Val_loss:0.805387
+  Train_F1:0.9352, BCA:0.9352, EER:0.0471 | Val_F1:0.7166, BCA:0.7195, EER:0.1881
+Epoch:30	Train_acc:0.9693	Val_acc:0.7298	Train_loss:0.086584	Val_loss:0.871073
+  Train_F1:0.9693, BCA:0.9693, EER:0.0199 | Val_F1:0.7304, BCA:0.7298, EER:0.1850
+Epoch:40	Train_acc:0.9914	Val_acc:0.7505	Train_loss:0.041462	Val_loss:0.949521
+  Train_F1:0.9914, BCA:0.9914, EER:0.0066 | Val_F1:0.7493, BCA:0.7505, EER:0.1843
+Epoch:50	Train_acc:0.9826	Val_acc:0.7484	Train_loss:0.052609	Val_loss:0.962664
+  Train_F1:0.9825, BCA:0.9825, EER:0.0122 | Val_F1:0.7484, BCA:0.7484, EER:0.1894
+Epoch:60	Train_acc:0.9870	Val_acc:0.7516	Train_loss:0.037377	Val_loss:1.045301
+  Train_F1:0.9870, BCA:0.9870, EER:0.0096 | Val_F1:0.7506, BCA:0.7516, EER:0.1765
+Epoch:70	Train_acc:0.9888	Val_acc:0.7350	Train_loss:0.031155	Val_loss:1.195352
+  Train_F1:0.9888, BCA:0.9888, EER:0.0082 | Val_F1:0.7355, BCA:0.7350, EER:0.1990
+Epoch:80	Train_acc:0.9922	Val_acc:0.7484	Train_loss:0.024254	Val_loss:1.221848
+  Train_F1:0.9922, BCA:0.9922, EER:0.0048 | Val_F1:0.7482, BCA:0.7484, EER:0.1845
+Epoch:90	Train_acc:0.9932	Val_acc:0.7422	Train_loss:0.021230	Val_loss:1.202772
+  Train_F1:0.9932, BCA:0.9932, EER:0.0051 | Val_F1:0.7424, BCA:0.7422, EER:0.1843
+Early stopping triggered at epoch 91.
+--------------------训练完成!--------------------
+总训练轮数-91, 早停轮数-60
+验证集最佳准确率为75.16%
+验证集平均准确率为72.18%
+=====================model are trained===============
+累计用时19617.4166s!
+测试集平均指标为  Acc:66.54%;  F1:66.60%;  BCA:66.54%; EER:24.34%;
+=====================test are done===================
+训练集:验证集:测试集=3862:966:2400
+SEED       Acc        F1         BCA        EER       
+2024       0.6746     0.6746     0.6746     0.2418    
+2025       0.6571     0.6575     0.6571     0.2477    
+2026       0.6587     0.6574     0.6588     0.2494    
+2027       0.6654     0.6660     0.6654     0.2434    
+2028       0.0000     0.0000     0.0000     0.0000    
+Avg        0.6640     0.6639     0.6640     0.2456    
+Std        0.0069     0.0071     0.0069     0.0031    
+==============================
+dataset: Motor
+model  : ShallowConvNet
+seed   : 2028
+gpu    : 6
+数据比例-----训练集:验证集:测试集 = (3862, 1, 64, 1000):(966, 1, 64, 1000):(2400, 1, 64, 1000)
+=====================data are prepared===============
+累计用时75.0421s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.8513	Val_acc:0.7319	Train_loss:0.374280	Val_loss:0.725165
+  Train_F1:0.8513, BCA:0.8513, EER:0.1072 | Val_F1:0.7292, BCA:0.7319, EER:0.1954
+Epoch:20	Train_acc:0.9542	Val_acc:0.7536	Train_loss:0.140468	Val_loss:0.757483
+  Train_F1:0.9542, BCA:0.9542, EER:0.0337 | Val_F1:0.7529, BCA:0.7536, EER:0.1765
+Epoch:30	Train_acc:0.9784	Val_acc:0.7360	Train_loss:0.071884	Val_loss:0.954980
+  Train_F1:0.9784, BCA:0.9784, EER:0.0147 | Val_F1:0.7345, BCA:0.7360, EER:0.1827
+Epoch:40	Train_acc:0.9820	Val_acc:0.7640	Train_loss:0.054002	Val_loss:1.020348
+  Train_F1:0.9820, BCA:0.9820, EER:0.0125 | Val_F1:0.7630, BCA:0.7640, EER:0.1796
+Epoch:50	Train_acc:0.9833	Val_acc:0.7474	Train_loss:0.051005	Val_loss:0.969982
+  Train_F1:0.9833, BCA:0.9833, EER:0.0117 | Val_F1:0.7476, BCA:0.7474, EER:0.1905
+Early stopping triggered at epoch 58.
+--------------------训练完成!--------------------
+总训练轮数-58, 早停轮数-27
+验证集最佳准确率为77.02%
+验证集平均准确率为72.99%
+=====================model are trained===============
+累计用时11833.2131s!
+测试集平均指标为  Acc:67.50%;  F1:67.53%;  BCA:67.50%; EER:23.79%;
+=====================test are done===================
+训练集:验证集:测试集=3862:966:2400
+SEED       Acc        F1         BCA        EER       
+2024       0.6746     0.6746     0.6746     0.2418    
+2025       0.6571     0.6575     0.6571     0.2477    
+2026       0.6587     0.6574     0.6588     0.2494    
+2027       0.6654     0.6660     0.6654     0.2434    
+2028       0.6750     0.6753     0.6750     0.2379    
+Avg        0.6662     0.6661     0.6662     0.2440    
+Std        0.0076     0.0078     0.0076     0.0041    
+--------------------------------------------------
+ShallowConvNet(
+  (block1): Sequential(
+    (0): Conv2d(1, 40, kernel_size=(1, 13), stride=(1, 1))
+    (1): Conv2d(40, 40, kernel_size=(64, 1), stride=(1, 1))
+    (2): BatchNorm2d(40, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (3): ELU(alpha=1.0)
+    (4): AvgPool2d(kernel_size=(1, 35), stride=(1, 7), padding=0)
+    (5): ELU(alpha=1.0)
+    (6): Dropout(p=0.5, inplace=False)
+  )
+  (clf): Classifier(
+    (flatten): Flatten(start_dim=1, end_dim=-1)
+    (fc1): Linear(in_features=5480, out_features=50, bias=True)
+    (relu): ReLU()
+    (fc2): Linear(in_features=50, out_features=3, bias=True)
+    (clf): Sequential(
+      (0): Flatten(start_dim=1, end_dim=-1)
+      (1): Linear(in_features=5480, out_features=50, bias=True)
+      (2): ReLU()
+      (3): Linear(in_features=50, out_features=3, bias=True)
+    )
+  )
+)

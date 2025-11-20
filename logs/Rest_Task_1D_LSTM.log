@@ -1,0 +1,223 @@
+==============================
+dataset: Rest
+model  : 1D_LSTM
+seed   : 2024
+gpu    : 6
+数据比例-----训练集:验证集:测试集 = (960, 1, 64, 1000):(240, 1, 64, 1000):(600, 1, 64, 1000)
+=====================data are prepared===============
+累计用时6.5902s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.9906	Val_acc:0.8625	Train_loss:0.024213	Val_loss:0.768628
+  Train_F1:0.9906, BCA:0.9906, EER:0.9896 | Val_F1:0.8625, BCA:0.8625, EER:0.8667
+Epoch:20	Train_acc:0.9906	Val_acc:0.8458	Train_loss:0.023071	Val_loss:0.798044
+  Train_F1:0.9906, BCA:0.9906, EER:0.9896 | Val_F1:0.8458, BCA:0.8458, EER:0.8417
+Epoch:30	Train_acc:0.9958	Val_acc:0.8500	Train_loss:0.008058	Val_loss:1.030119
+  Train_F1:0.9958, BCA:0.9958, EER:0.9958 | Val_F1:0.8497, BCA:0.8500, EER:0.8375
+Epoch:40	Train_acc:0.9990	Val_acc:0.8458	Train_loss:0.001308	Val_loss:1.022399
+  Train_F1:0.9990, BCA:0.9990, EER:1.0000 | Val_F1:0.8458, BCA:0.8458, EER:0.8417
+Epoch:50	Train_acc:0.9990	Val_acc:0.8417	Train_loss:0.001959	Val_loss:1.383372
+  Train_F1:0.9990, BCA:0.9990, EER:1.0000 | Val_F1:0.8417, BCA:0.8417, EER:0.8417
+Early stopping triggered at epoch 52.
+--------------------训练完成!--------------------
+总训练轮数-52, 早停轮数-21
+验证集最佳准确率为87.92%
+验证集平均准确率为84.95%
+=====================model are trained===============
+累计用时3572.8182s!
+测试集平均指标为  Acc:77.17%;  F1:77.10%;  BCA:77.17%; EER:79.33%;
+=====================test are done===================
+训练集:验证集:测试集=960:240:600
+SEED       Acc        F1         BCA        EER       
+2024       0.7717     0.7710     0.7717     0.7933    
+2025       0.0000     0.0000     0.0000     0.0000    
+2026       0.0000     0.0000     0.0000     0.0000    
+2027       0.0000     0.0000     0.0000     0.0000    
+2028       0.0000     0.0000     0.0000     0.0000    
+Avg        0.7717     0.7710     0.7717     0.7933    
+Std        0.0000     0.0000     0.0000     0.0000    
+==============================
+dataset: Rest
+model  : 1D_LSTM
+seed   : 2025
+gpu    : 6
+数据比例-----训练集:验证集:测试集 = (960, 1, 64, 1000):(240, 1, 64, 1000):(600, 1, 64, 1000)
+=====================data are prepared===============
+累计用时34.2573s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.9948	Val_acc:0.8125	Train_loss:0.012323	Val_loss:1.079648
+  Train_F1:0.9948, BCA:0.9948, EER:0.9958 | Val_F1:0.8125, BCA:0.8125, EER:0.8083
+Epoch:20	Train_acc:0.9969	Val_acc:0.8125	Train_loss:0.013525	Val_loss:1.144126
+  Train_F1:0.9969, BCA:0.9969, EER:0.9948 | Val_F1:0.8125, BCA:0.8125, EER:0.8167
+Epoch:30	Train_acc:1.0000	Val_acc:0.8333	Train_loss:0.001349	Val_loss:1.695858
+  Train_F1:1.0000, BCA:1.0000, EER:1.0000 | Val_F1:0.8333, BCA:0.8333, EER:0.8208
+Epoch:40	Train_acc:0.9979	Val_acc:0.8167	Train_loss:0.002628	Val_loss:2.147078
+  Train_F1:0.9979, BCA:0.9979, EER:1.0000 | Val_F1:0.8165, BCA:0.8167, EER:0.7875
+Early stopping triggered at epoch 45.
+--------------------训练完成!--------------------
+总训练轮数-45, 早停轮数-14
+验证集最佳准确率为83.75%
+验证集平均准确率为81.40%
+=====================model are trained===============
+累计用时3124.1369s!
+测试集平均指标为  Acc:76.00%;  F1:75.99%;  BCA:76.00%; EER:77.00%;
+=====================test are done===================
+训练集:验证集:测试集=960:240:600
+SEED       Acc        F1         BCA        EER       
+2024       0.7717     0.7710     0.7717     0.7933    
+2025       0.7600     0.7599     0.7600     0.7700    
+2026       0.0000     0.0000     0.0000     0.0000    
+2027       0.0000     0.0000     0.0000     0.0000    
+2028       0.0000     0.0000     0.0000     0.0000    
+Avg        0.7658     0.7654     0.7658     0.7817    
+Std        0.0058     0.0055     0.0058     0.0117    
+==============================
+dataset: Rest
+model  : 1D_LSTM
+seed   : 2026
+gpu    : 6
+数据比例-----训练集:验证集:测试集 = (960, 1, 64, 1000):(240, 1, 64, 1000):(600, 1, 64, 1000)
+=====================data are prepared===============
+累计用时37.6277s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.9823	Val_acc:0.8542	Train_loss:0.044024	Val_loss:0.928433
+  Train_F1:0.9823, BCA:0.9823, EER:0.9833 | Val_F1:0.8541, BCA:0.8542, EER:0.8417
+Epoch:20	Train_acc:0.9969	Val_acc:0.8583	Train_loss:0.006414	Val_loss:1.211913
+  Train_F1:0.9969, BCA:0.9969, EER:0.9990 | Val_F1:0.8582, BCA:0.8583, EER:0.8542
+Epoch:30	Train_acc:0.9969	Val_acc:0.8500	Train_loss:0.008652	Val_loss:1.704245
+  Train_F1:0.9969, BCA:0.9969, EER:0.9958 | Val_F1:0.8500, BCA:0.8500, EER:0.8458
+Early stopping triggered at epoch 36.
+--------------------训练完成!--------------------
+总训练轮数-36, 早停轮数-5
+验证集最佳准确率为87.50%
+验证集平均准确率为84.67%
+=====================model are trained===============
+累计用时2494.7852s!
+测试集平均指标为  Acc:76.67%;  F1:76.66%;  BCA:76.67%; EER:76.67%;
+=====================test are done===================
+训练集:验证集:测试集=960:240:600
+SEED       Acc        F1         BCA        EER       
+2024       0.7717     0.7710     0.7717     0.7933    
+2025       0.7600     0.7599     0.7600     0.7700    
+2026       0.7667     0.7666     0.7667     0.7667    
+2027       0.0000     0.0000     0.0000     0.0000    
+2028       0.0000     0.0000     0.0000     0.0000    
+Avg        0.7661     0.7658     0.7661     0.7767    
+Std        0.0048     0.0046     0.0048     0.0119    
+==============================
+dataset: Rest
+model  : 1D_LSTM
+seed   : 2027
+gpu    : 6
+数据比例-----训练集:验证集:测试集 = (960, 1, 64, 1000):(240, 1, 64, 1000):(600, 1, 64, 1000)
+=====================data are prepared===============
+累计用时38.2382s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.9854	Val_acc:0.8792	Train_loss:0.036735	Val_loss:0.679878
+  Train_F1:0.9854, BCA:0.9854, EER:0.9875 | Val_F1:0.8792, BCA:0.8792, EER:0.8833
+Epoch:20	Train_acc:0.9979	Val_acc:0.8583	Train_loss:0.010183	Val_loss:0.987839
+  Train_F1:0.9979, BCA:0.9979, EER:0.9948 | Val_F1:0.8583, BCA:0.8583, EER:0.8667
+Epoch:30	Train_acc:1.0000	Val_acc:0.8667	Train_loss:0.001105	Val_loss:1.214605
+  Train_F1:1.0000, BCA:1.0000, EER:1.0000 | Val_F1:0.8667, BCA:0.8667, EER:0.8625
+Early stopping triggered at epoch 34.
+--------------------训练完成!--------------------
+总训练轮数-34, 早停轮数-3
+验证集最佳准确率为89.17%
+验证集平均准确率为86.21%
+=====================model are trained===============
+累计用时2390.2411s!
+测试集平均指标为  Acc:77.33%;  F1:77.33%;  BCA:77.33%; EER:77.00%;
+=====================test are done===================
+训练集:验证集:测试集=960:240:600
+SEED       Acc        F1         BCA        EER       
+2024       0.7717     0.7710     0.7717     0.7933    
+2025       0.7600     0.7599     0.7600     0.7700    
+2026       0.7667     0.7666     0.7667     0.7667    
+2027       0.7733     0.7733     0.7733     0.7700    
+2028       0.0000     0.0000     0.0000     0.0000    
+Avg        0.7679     0.7677     0.7679     0.7750    
+Std        0.0052     0.0051     0.0052     0.0107    
+==============================
+dataset: Rest
+model  : 1D_LSTM
+seed   : 2028
+gpu    : 6
+数据比例-----训练集:验证集:测试集 = (960, 1, 64, 1000):(240, 1, 64, 1000):(600, 1, 64, 1000)
+=====================data are prepared===============
+累计用时39.7324s!
+--------------------开始训练!--------------------
+Epoch:10	Train_acc:0.9865	Val_acc:0.8667	Train_loss:0.035680	Val_loss:0.777613
+  Train_F1:0.9865, BCA:0.9865, EER:0.9896 | Val_F1:0.8666, BCA:0.8667, EER:0.8833
+Epoch:20	Train_acc:0.9969	Val_acc:0.8833	Train_loss:0.009415	Val_loss:1.010950
+  Train_F1:0.9969, BCA:0.9969, EER:0.9979 | Val_F1:0.8833, BCA:0.8833, EER:0.8667
+Epoch:30	Train_acc:0.9979	Val_acc:0.8833	Train_loss:0.005438	Val_loss:1.227471
+  Train_F1:0.9979, BCA:0.9979, EER:0.9979 | Val_F1:0.8830, BCA:0.8833, EER:0.8750
+Early stopping triggered at epoch 39.
+--------------------训练完成!--------------------
+总训练轮数-39, 早停轮数-8
+验证集最佳准确率为88.33%
+验证集平均准确率为86.55%
+=====================model are trained===============
+累计用时2723.0555s!
+测试集平均指标为  Acc:76.00%;  F1:75.99%;  BCA:76.00%; EER:76.33%;
+=====================test are done===================
+训练集:验证集:测试集=960:240:600
+SEED       Acc        F1         BCA        EER       
+2024       0.7717     0.7710     0.7717     0.7933    
+2025       0.7600     0.7599     0.7600     0.7700    
+2026       0.7667     0.7666     0.7667     0.7667    
+2027       0.7733     0.7733     0.7733     0.7700    
+2028       0.7600     0.7599     0.7600     0.7633    
+Avg        0.7663     0.7661     0.7663     0.7727    
+Std        0.0056     0.0055     0.0056     0.0106    
+--------------------------------------------------
+CNN_LSTM(
+  (block1): Sequential(
+    (0): Conv2d(1, 32, kernel_size=(64, 1), stride=(1, 1), bias=False)
+    (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (2): ELU(alpha=1.0)
+    (3): AvgPool2d(kernel_size=(1, 2), stride=(1, 2), padding=0)
+    (4): Dropout(p=0.25, inplace=False)
+  )
+  (block2): Sequential(
+    (0): Conv2d(32, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+    (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (2): ELU(alpha=1.0)
+    (3): AvgPool2d(kernel_size=(1, 2), stride=(1, 2), padding=0)
+    (4): Dropout(p=0.25, inplace=False)
+  )
+  (block3): Sequential(
+    (0): Conv2d(64, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+    (1): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (2): ELU(alpha=1.0)
+    (3): AvgPool2d(kernel_size=(1, 2), stride=(1, 2), padding=0)
+    (4): Dropout(p=0.25, inplace=False)
+  )
+  (convblock): Sequential(
+    (0): Sequential(
+      (0): Conv2d(1, 32, kernel_size=(64, 1), stride=(1, 1), bias=False)
+      (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (2): ELU(alpha=1.0)
+      (3): AvgPool2d(kernel_size=(1, 2), stride=(1, 2), padding=0)
+      (4): Dropout(p=0.25, inplace=False)
+    )
+    (1): Sequential(
+      (0): Conv2d(32, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+      (1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (2): ELU(alpha=1.0)
+      (3): AvgPool2d(kernel_size=(1, 2), stride=(1, 2), padding=0)
+      (4): Dropout(p=0.25, inplace=False)
+    )
+    (2): Sequential(
+      (0): Conv2d(64, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+      (1): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (2): ELU(alpha=1.0)
+      (3): AvgPool2d(kernel_size=(1, 2), stride=(1, 2), padding=0)
+      (4): Dropout(p=0.25, inplace=False)
+    )
+  )
+  (lstm): LSTM(1000, 128, num_layers=2, batch_first=True)
+  (clf): Sequential(
+    (0): Linear(in_features=2048, out_features=128, bias=True)
+    (1): Linear(in_features=128, out_features=2, bias=True)
+  )
+)
