@@ -3,7 +3,6 @@ import torch
 import sys
 import time
 import gc
-sys.path.append("/mnt/data1/tyl/UserID/")
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -97,10 +96,10 @@ def main():
     args = init_args()
     args = set_args(args)
     device = torch.device("cuda:"+str(args.gpuid) if torch.cuda.is_available() else "cpu")
-    results = np.zeros((5, 4)) 
-    
-    sys.stdout = Logger(os.path.join("/mnt/data1/tyl/UnlearnableData/src/logs",
-                                     f"{args.dataset}_" + f'Task_{args.model}.log'))
+    results = np.zeros((5, 4))
+
+    log_path = args.log_root / f"{args.dataset}_Task_{args.model}.log"
+    sys.stdout = Logger(log_path)
 
     for idx, seed in enumerate(range(args.seed, args.seed + args.repeats)):
         args.seed = seed
@@ -119,7 +118,7 @@ def main():
         print("=====================data are prepared===============")
         print(f"累计用时{time.time() - start_time:.4f}s!")
 
-        model_path = os.path.join("/mnt/data1/tyl/UnlearnableData/src/ModelSave", f"{args.dataset}")
+        model_path = args.model_root / f"{args.dataset}"
         if not os.path.exists(model_path):
             os.makedirs(model_path)
 
@@ -156,10 +155,10 @@ def main():
                       columns=['Acc', 'F1', 'BCA', 'EER'], # Updated column labels to include BCA
                       index=['2024', '2025', '2026', '2027', '2028', "Avg", "Std"])
     df = df.round(4)
-    csv_path = os.path.join("/mnt/data1/tyl/UnlearnableData/src/csv", f"{args.dataset}") # Fixed path
+    csv_path = args.csv_root / f"{args.dataset}" # Fixed path
     if not os.path.exists(csv_path):
         os.makedirs(csv_path)
-    df.to_csv(os.path.join(csv_path, f"Task_{args.model}.csv"))
+    df.to_csv(csv_path / f"Task_{args.model}.csv")
 
 
 if __name__ == "__main__":

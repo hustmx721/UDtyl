@@ -1,13 +1,19 @@
 import sys
-sys.path.append("/mnt/data1/tyl")
+from pathlib import Path
 
 import torch
 import argparse
-from data_loader import *
-from models import LoadModel
+from .data_loader import *
+from .models import LoadModel
 
 
 def init_args():
+    project_root = Path(__file__).resolve().parent.parent
+    default_log_root = project_root / "logs"
+    default_model_root = project_root / "ModelSave"
+    default_csv_root = project_root / "csv"
+    default_sys_path = project_root
+
     parser = argparse.ArgumentParser(description="Model Train Hyperparameter")
     parser.add_argument("--dataset", type=str, default=None)
     parser.add_argument("--gpuid", type=int, default=9)
@@ -23,8 +29,26 @@ def init_args():
     parser.add_argument("--model", type=str, default="EEGNet")
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--is_task", type=bool, default=True)
+    parser.add_argument("--log_root", type=Path, default=default_log_root,
+                        help="Directory to store training logs")
+    parser.add_argument("--model_root", type=Path, default=default_model_root,
+                        help="Directory to store trained model checkpoints")
+    parser.add_argument("--csv_root", type=Path, default=default_csv_root,
+                        help="Directory to store exported CSV results")
+    parser.add_argument("--extra_sys_path", type=Path, default=default_sys_path,
+                        help="Additional path to append to sys.path for imports")
 
     args = parser.parse_args()
+
+    # Append additional sys.path if provided
+    if args.extra_sys_path:
+        extra_path = args.extra_sys_path
+        if not extra_path.is_absolute():
+            extra_path = project_root / extra_path
+        resolved_path = extra_path.resolve()
+        if str(resolved_path) not in sys.path:
+            sys.path.append(str(resolved_path))
+
     return args
 
 def set_args(args:argparse.ArgumentParser):
