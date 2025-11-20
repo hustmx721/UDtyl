@@ -1,4 +1,4 @@
-import os, gc, sys
+import os, gc
 import scipy, pickle
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
@@ -9,9 +9,6 @@ import psutil
 from einops import rearrange
 from sklearn.model_selection import train_test_split
 import scipy.linalg as la
-
-sys.path.append(os.path.abspath(__file__))
-sys.path.append("/mnt/data1/tyl/UnlearnableData/src")
 from utils.dataset import ToDataLoader, set_seed
 from utils.preprocess import preprocessing
 
