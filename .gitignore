@@ -16,3 +16,4 @@ __pycache__/
 *.log
 *.npy
 *.npz
+*.csv
