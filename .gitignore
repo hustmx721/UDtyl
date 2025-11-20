@@ -1,0 +1,18 @@
+# Ignore generated data
+src/csv/*
+src/logs/*
+src/ModelSave/*
+
+# But keep the folder structure
+!src/csv/.gitkeep
+!src/logs/.gitkeep
+!src/ModelSave/.gitkeep
+
+# Other common patterns
+__pycache__/
+*.pyc
+*.pt
+*.pth
+*.log
+*.npy
+*.npz
