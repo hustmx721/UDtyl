@@ -17,11 +17,12 @@ from utils.init_all import init_args, set_args, load_all, load_data
 from utils.Logging import Logger
 
 from evaluate import evaluate
-from train import train_one_epoch 
+from train import train_one_epoch
+
 
 def TaskClassify(trainloader, valloader, savepath, args):
     print("-" * 20 + "开始训练!" + "-" * 20)
-    
+
     model, optimizer, device = load_all(args)
     torch.cuda.empty_cache()
     torch.cuda.set_device(device)
@@ -33,13 +34,13 @@ def TaskClassify(trainloader, valloader, savepath, args):
     best_epoch = 0
     best_acc = 0
     train_acc_all = []
-    train_f1_all = [] 
-    train_bca_all = [] 
-    train_eer_all = [] 
+    train_f1_all = []
+    train_bca_all = []
+    train_eer_all = []
     val_acc_all = []
-    val_f1_all = [] 
-    val_bca_all = [] 
-    val_eer_all = [] 
+    val_f1_all = []
+    val_bca_all = []
+    val_eer_all = []
     loss_item_train = []
     loss_item_val = []
 
@@ -111,7 +112,7 @@ def main():
         print(f"seed   : {args.seed}")
         print(f"gpu    : {args.gpuid}")
         print(f"is_task: {args.is_task}")
-        
+
         set_seed(args.seed)
         trainloader, valloader, testloader = load_data(args)
 
@@ -125,7 +126,7 @@ def main():
         model = TaskClassify(trainloader, valloader, model_path, args)
         print("=====================model are trained===============")
         print(f"累计用时{time.time() - start_time:.4f}s!")
-        
+
         test_loss, test_acc, test_f1, test_bca, test_eer = evaluate(model, testloader, args, device)
 
         results[idx] = [test_acc, test_f1, test_bca, test_eer]
@@ -134,7 +135,7 @@ def main():
         print("=====================test are done===================")
 
         row_labels = ['2024', '2025', '2026', '2027', '2028', "Avg", "Std"]
-        col_labels = ['Acc', 'F1', 'BCA', 'EER'] 
+        col_labels = ['Acc', 'F1', 'BCA', 'EER']
         print(
             f"训练集:验证集:测试集={len(trainloader.dataset)}:{len(valloader.dataset)}:{len(testloader.dataset)}")
         # 打印列标签
