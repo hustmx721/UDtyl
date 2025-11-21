@@ -8,6 +8,7 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import torch
 import pandas as pd
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from utils.dataset import set_seed
@@ -23,6 +24,69 @@ def compute_soft_labels(logits: torch.Tensor, temperature: float, smoothing: flo
     if smoothing > 0:
         num_classes = soft_targets.size(1)
         soft_targets = (1 - smoothing) * soft_targets + smoothing / num_classes
+    return soft_targets
+
+
+def refine_soft_labels(logits: torch.Tensor, initial_soft: torch.Tensor, steps: int, lr: float, entropy_reg: float) -> torch.Tensor:
+    """
+    Inner minimization (min over q): optimize soft labels w.r.t. negative log-likelihood
+    with an optional entropy regularizer. The model logits are treated as constants
+    so this realizes the min-min structure from EM_Huang (q-update then theta-update).
+    """
+    if steps <= 0:
+        return initial_soft.detach()
+
+    soft = initial_soft.clone().detach().requires_grad_(True)
+    log_probs = torch.log_softmax(logits.detach(), dim=1)
+
+    for _ in range(steps):
+        loss = -(soft * log_probs).sum(dim=1).mean()
+        if entropy_reg > 0:
+            entropy = -(soft * torch.log(soft.clamp_min(1e-12))).sum(dim=1).mean()
+            loss = loss + entropy_reg * entropy
+
+        grad = torch.autograd.grad(loss, soft, retain_graph=False)[0]
+        with torch.no_grad():
+            soft -= lr * grad
+            soft.clamp_(min=1e-8)
+            soft /= soft.sum(dim=1, keepdim=True)
+
+        soft.requires_grad_(True)
+
+    return soft.detach()
+
+
+def e_step(model, dataloader, device, temperature, smoothing, inner_steps, inner_lr, entropy_reg):
+    model.eval()
+
+    cached_soft_labels = []
+    total_samples = 0
+    total_log_likelihood = 0.0
+
+    with torch.no_grad():
+        for b_x, _ in dataloader:
+            b_x = b_x.to(device)
+            logits = model(b_x)
+            base_soft = compute_soft_labels(logits, temperature, smoothing)
+
+            if inner_steps > 0:
+                refined_soft = refine_soft_labels(logits, base_soft, inner_steps, inner_lr, entropy_reg)
+            else:
+                refined_soft = base_soft.detach()
+
+            log_probs = torch.log_softmax(logits.detach() / max(temperature, 1e-6), dim=1)
+            batch_ll = (refined_soft * log_probs).sum(dim=1)
+
+            cached_soft_labels.append(refined_soft.cpu())
+            total_log_likelihood += batch_ll.sum().item()
+            total_samples += b_x.size(0)
+
+    avg_log_likelihood = total_log_likelihood / max(total_samples, 1)
+    cached_soft_labels = torch.cat(cached_soft_labels, dim=0) if cached_soft_labels else torch.empty(0)
+    return avg_log_likelihood, cached_soft_labels
+
+
+def m_step(model, dataloader, device, optimizer, soft_labels):
     return soft_targets.detach()
 
 
@@ -31,6 +95,17 @@ def em_one_epoch(model, dataloader, device, optimizer, temperature, smoothing):
 
     total_loss = 0.0
     total_samples = 0
+    offset = 0
+
+    for b_x, _ in dataloader:
+        bsz = b_x.size(0)
+        targets = soft_labels[offset:offset + bsz].to(device)
+        offset += bsz
+
+        b_x = b_x.to(device)
+        logits = model(b_x)
+        log_probs = torch.log_softmax(logits, dim=1)
+        loss = -(targets * log_probs).sum(dim=1).mean()
     total_log_likelihood = 0.0
     cached_soft_labels = []
 
@@ -46,6 +121,22 @@ def em_one_epoch(model, dataloader, device, optimizer, temperature, smoothing):
         loss.backward()
         optimizer.step()
 
+        total_loss += loss.item() * bsz
+        total_samples += bsz
+
+    avg_loss = total_loss / max(total_samples, 1)
+    return avg_loss
+
+
+def build_consistent_loader(trainloader):
+    return DataLoader(
+        dataset=trainloader.dataset,
+        batch_size=trainloader.batch_size,
+        shuffle=False,
+        num_workers=trainloader.num_workers,
+        pin_memory=trainloader.pin_memory,
+        drop_last=False,
+    )
         batch_size = b_x.size(0)
         total_loss += loss.item() * batch_size
         total_samples += batch_size
@@ -77,6 +168,33 @@ def EMTrain(trainloader, valloader, savepath, args):
 
     best_epoch = 0
     best_acc = 0
+    prev_log_likelihood = None
+
+    val_acc_all = []
+
+    em_loader = build_consistent_loader(trainloader)
+
+    for epoch in tqdm(range(args.em_iters), desc="EM Training:"):
+        # E-step: min over q (soft labels)
+        em_ll, cached_soft_labels = e_step(
+            model=model,
+            dataloader=em_loader,
+            device=device,
+            temperature=args.em_temperature,
+            smoothing=args.em_label_smoothing,
+            inner_steps=args.em_inner_steps,
+            inner_lr=args.em_inner_lr,
+            entropy_reg=args.em_entropy_reg,
+        )
+
+        # M-step: min over theta (model params)
+        em_loss = m_step(
+            model=model,
+            dataloader=em_loader,
+            device=device,
+            optimizer=optimizer,
+            soft_labels=cached_soft_labels,
+        )
 
     train_acc_all = []
     train_f1_all = []
@@ -133,6 +251,16 @@ def EMTrain(trainloader, valloader, savepath, args):
                 break
         prev_log_likelihood = em_ll
 
+        if (epoch + 1) % 10 == 0:
+            print(
+                f"Epoch:{epoch+1}\tTrain_negLL:{em_loss:.6f}\tVal_acc:{val_acc:.4f}\tVal_loss:{val_loss:.6f}\tAvg_LL:{em_ll:.6f}")
+            print(f"  Val_F1:{val_f1:.4f}, BCA:{val_bca:.4f}, EER:{val_eer:.4f}")
+
+    # Reload best checkpoint if it was saved
+    best_ckpt = os.path.join(savepath, f"EM_{args.model}_{args.seed}.pth")
+    if os.path.isfile(best_ckpt):
+        model.load_state_dict(torch.load(best_ckpt, map_location=device))
+
         # Estimate training metrics using cached soft labels
         if len(trainloader.dataset) > 0:
             train_acc_all.append(val_acc)
@@ -154,6 +282,18 @@ def EMTrain(trainloader, valloader, savepath, args):
 def main():
     args = init_args()
     # Extend EM-specific defaults after parsing
+    for field, default in [
+        ("em_iters", 100),
+        ("em_threshold", 1e-4),
+        ("em_temperature", 1.0),
+        ("em_label_smoothing", 0.0),
+        ("em_init_model", None),
+        ("em_inner_steps", 5),
+        ("em_inner_lr", 0.1),
+        ("em_entropy_reg", 0.0),
+    ]:
+        if not hasattr(args, field):
+            setattr(args, field, default)
     if not hasattr(args, "em_iters"):
         args.em_iters = 100
     if not hasattr(args, "em_threshold"):
@@ -184,6 +324,7 @@ def main():
         print(f"is_task: {args.is_task}")
         print(f"em_iters: {args.em_iters}, em_threshold: {args.em_threshold}")
         print(f"temperature: {args.em_temperature}, smoothing: {args.em_label_smoothing}")
+        print(f"inner_steps: {args.em_inner_steps}, inner_lr: {args.em_inner_lr}, entropy_reg: {args.em_entropy_reg}")
 
         set_seed(args.seed)
         trainloader, valloader, testloader = load_data(args)
@@ -232,4 +373,5 @@ def main():
 
 
 if __name__ == "__main__":
+    main()
     main()
