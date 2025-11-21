@@ -29,6 +29,7 @@ def init_args():
     parser.add_argument("--model", type=str, default="EEGNet")
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--is_task", type=bool, default=True)
+    # logs path
     parser.add_argument("--log_root", type=Path, default=default_log_root,
                         help="Directory to store training logs")
     parser.add_argument("--model_root", type=Path, default=default_model_root,
@@ -37,6 +38,17 @@ def init_args():
                         help="Directory to store exported CSV results")
     parser.add_argument("--extra_sys_path", type=Path, default=default_sys_path,
                         help="Additional path to append to sys.path for imports")
+    # EM hyperparameters
+    parser.add_argument("--em_iters", type=int, default=100,
+                        help="Maximum number of EM iterations")
+    parser.add_argument("--em_threshold", type=float, default=1e-4,
+                        help="Convergence threshold for EM log-likelihood change")
+    parser.add_argument("--em_temperature", type=float, default=1.0,
+                        help="Softmax temperature for soft-label estimation in E-step")
+    parser.add_argument("--em_label_smoothing", type=float, default=0.0,
+                        help="Label smoothing factor for soft labels during EM")
+    parser.add_argument("--em_init_model", type=str, default=None,
+                        help="Optional checkpoint path to initialize EM model weights")
 
     args = parser.parse_args()
 
