@@ -29,6 +29,7 @@ def init_args():
     parser.add_argument("--model", type=str, default="EEGNet")
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--is_task", type=bool, default=True)
+    # logs path
     parser.add_argument("--log_root", type=Path, default=default_log_root,
                         help="Directory to store training logs")
     parser.add_argument("--model_root", type=Path, default=default_model_root,
@@ -37,6 +38,7 @@ def init_args():
                         help="Directory to store exported CSV results")
     parser.add_argument("--extra_sys_path", type=Path, default=default_sys_path,
                         help="Additional path to append to sys.path for imports")
+    # EM hyperparameters
     parser.add_argument("--em_iters", type=int, default=100,
                         help="Maximum number of EM iterations")
     parser.add_argument("--em_threshold", type=float, default=1e-4,
