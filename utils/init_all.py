@@ -38,23 +38,26 @@ def init_args():
                         help="Directory to store exported CSV results")
     parser.add_argument("--extra_sys_path", type=Path, default=default_sys_path,
                         help="Additional path to append to sys.path for imports")
-    # EM hyperparameters
-    parser.add_argument("--em_iters", type=int, default=100,
-                        help="Maximum number of EM iterations")
-    parser.add_argument("--em_threshold", type=float, default=1e-4,
-                        help="Convergence threshold for EM log-likelihood change")
-    parser.add_argument("--em_temperature", type=float, default=1.0,
-                        help="Softmax temperature for soft-label estimation in E-step")
-    parser.add_argument("--em_label_smoothing", type=float, default=0.0,
-                        help="Label smoothing factor for soft labels during EM")
+    parser.add_argument("--em_outer", type=int, default=100,
+                        help="Maximum number of outer error-minimization rounds (Algorithm 1)")
+    parser.add_argument("--em_iters", type=int, default=None,
+                        help="Deprecated alias for em_outer; if set, overrides em_outer")
+    parser.add_argument("--em_theta_epochs", type=int, default=10,
+                        help="Number of parameter-update epochs (M in Algorithm 1) before refreshing noise")
+    parser.add_argument("--em_pgd_steps", type=int, default=20,
+                        help="Number of PGD steps to update error-minimizing noise δ")
+    parser.add_argument("--em_eps", type=float, default=8/255.,
+                        help="L_inf radius for error-minimizing noise")
+    parser.add_argument("--em_alpha", type=float, default=None,
+                        help="Step size for PGD noise update; defaults to em_eps/10 when unset")
+    parser.add_argument("--em_lambda", type=float, default=0.1,
+                        help="Training error threshold λ to stop error-minimization early")
+    parser.add_argument("--em_clip_min", type=float, default=None,
+                        help="Optional lower clamp for perturbed inputs (e.g., 0.0 for images)")
+    parser.add_argument("--em_clip_max", type=float, default=None,
+                        help="Optional upper clamp for perturbed inputs (e.g., 1.0 for images)")
     parser.add_argument("--em_init_model", type=str, default=None,
                         help="Optional checkpoint path to initialize EM model weights")
-    parser.add_argument("--em_inner_steps", type=int, default=5,
-                        help="Inner steps to refine soft labels (min w.r.t. labels)")
-    parser.add_argument("--em_inner_lr", type=float, default=0.1,
-                        help="Learning rate for inner soft-label refinement")
-    parser.add_argument("--em_entropy_reg", type=float, default=0.0,
-                        help="Entropy regularization weight for soft labels")
 
     args = parser.parse_args()
 
@@ -107,13 +110,13 @@ def set_args(args: argparse.ArgumentParser):
     return args
 
 
-def load_data(args: argparse.ArgumentParser):
+def load_data(args: argparse.ArgumentParser, include_index: bool = False):
     OpenBMI = ["MI", "SSVEP", "ERP"]
     M3CV = ["Rest", "Transient", "Steady", "P300", "Motor", "SSVEP_SA"]
     if args.dataset in OpenBMI:
-        trainloader, valloader, testloader = GetLoaderOpenBMI(args.seed, Task=args.dataset, is_task=args.is_task)
+        trainloader, valloader, testloader = GetLoaderOpenBMI(args.seed, Task=args.dataset, is_task=args.is_task, include_index=include_index)
     elif args.dataset in M3CV:
-        trainloader, valloader, testloader = GetLoaderM3CV(args.seed, Task=args.dataset, is_task=args.is_task)
+        trainloader, valloader, testloader = GetLoaderM3CV(args.seed, Task=args.dataset, is_task=args.is_task, include_index=include_index)
     else:
         raise ValueError("Invalid dataset name")
     return trainloader, valloader, testloader

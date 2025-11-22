@@ -108,7 +108,7 @@ def SubBandSplit(data: np.ndarray, freq_start: int = 4, freq_end: int = 40, band
 # MI:(54,200,62,4000) --> downsample: (54,200,62,1000)
 # SSVEP:(54,200,62,4000) --> downsample : (54,200,62,1000)
 # ERP:(54,4140,62,800) --> downsample : (54,200,62,200)
-def GetLoaderOpenBMI(seed, Task:str="MI", batchsize:int=64, is_task = True): # Task = "ERP", "MI", "SSVEP"
+def GetLoaderOpenBMI(seed, Task: str = "MI", batchsize: int = 64, is_task: bool = True, include_index: bool = False): # Task = "ERP", "MI", "SSVEP"
     def load_data(file_path):
         with open(file_path, "rb") as f:
             return pickle.load(f)
@@ -156,8 +156,8 @@ def GetLoaderOpenBMI(seed, Task:str="MI", batchsize:int=64, is_task = True): # T
     print("-----数据预处理完成-----")
     print(f"是否任务分类: {is_task}, 类别数量: {len(np.unique(train_y))}")
     print(f"数据比例-----训练集:验证集:测试集 = {tx.shape}:{vx.shape}:{test_x.shape}")
-    [trainloader, validateloader, testloader] = [ToDataLoader(x,y,mode, batch_size=batchsize) for x,y,mode \
-                                                 in zip([tx, vx, test_x], [ts, vs, test_y], ["train","test","test"])]
+    [trainloader, validateloader, testloader] = [ToDataLoader(x, y, mode, batch_size=batchsize, include_index=include_index) for x, y, mode \
+                                                 in zip([tx, vx, test_x], [ts, vs, test_y], ["train", "test", "test"])]
     return trainloader, validateloader, testloader
 
 
@@ -180,7 +180,7 @@ SSVEP_SA (480, 65, 1000) (480,) -- 20 * 24
 ! 注意: 去除EasyCap后是64通道
 """
 # Task = "Rest"， "Transient", "Steady", "Motor"
-def GetLoaderM3CV(seed, Task:str="Rest", batchsize:int=64, is_task=True): 
+def GetLoaderM3CV(seed, Task: str = "Rest", batchsize: int = 64, is_task: bool = True, include_index: bool = False):
     def load_data(file_path):
         with open(file_path, "rb") as f:
             return pickle.load(f)
@@ -229,19 +229,19 @@ def GetLoaderM3CV(seed, Task:str="Rest", batchsize:int=64, is_task=True):
     print(test_y)
     print(f"是否任务分类: {is_task}, 类别数量: {len(np.unique(train_y))}")
     print(f"数据比例-----训练集:验证集:测试集 = {tx.shape}:{vx.shape}:{test_x.shape}")
-    [trainloader, validateloader, testloader] = [ToDataLoader(x,y,mode, batch_size=batchsize) for x,y,mode \
+    [trainloader, validateloader, testloader] = [ToDataLoader(x, y, mode, batch_size=batchsize, include_index=include_index) for x, y, mode \
                                                  in zip([tx, vx, test_x], [ts, vs, test_y], ["train","test","test"])]
     del data_train, data_test, train_x, train_y, test_x, test_y, tx, vx, ts, vs
     gc.collect()
     return trainloader, validateloader, testloader
 
-def Load_Dataloader(seed, Task, batchsize, is_task=True):
+def Load_Dataloader(seed, Task, batchsize, is_task=True, include_index: bool = False):
     OpenBMI = ["MI", "SSVEP", "ERP"]
     M3CV = ["Rest", "Transient", "Steady", "P300", "Motor", "SSVEP_SA"]
     set_seed(seed)
     
     if Task in OpenBMI:
-        trainloader, valloader, testloader = GetLoaderOpenBMI(seed,Task=Task, batchsize=batchsize, is_task=is_task)
+        trainloader, valloader, testloader = GetLoaderOpenBMI(seed, Task=Task, batchsize=batchsize, is_task=is_task, include_index=include_index)
     elif Task in M3CV:
-        trainloader, valloader, testloader = GetLoaderM3CV(seed,Task=Task, batchsize=batchsize, is_task=is_task)
+        trainloader, valloader, testloader = GetLoaderM3CV(seed, Task=Task, batchsize=batchsize, is_task=is_task, include_index=include_index)
     return trainloader, valloader, testloader
