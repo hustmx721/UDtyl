@@ -3,7 +3,7 @@ import sys
 import time
 import gc
 import warnings
-from typing import Tuple
+from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -116,16 +116,20 @@ def log_and_eval(
     return test_loss, test_acc, test_f1, test_bca, test_eer
 
 
-def summarize_results(results: np.ndarray, idx: int):
-    row_labels = ["2024", "2025", "2026", "2027", "2028", "Avg", "Std"]
+def summarize_results(results: np.ndarray, seeds: List[int], idx: int, prefix: str):
+    row_labels = [str(seed) for seed in seeds] + ["Avg", "Std"]
     col_labels = ["Acc", "F1", "BCA", "EER"]
+    print(f"{prefix}结果汇总（前{idx + 1}轮）")
     print(
         f"{'SEED':<10} {col_labels[0]:<10} {col_labels[1]:<10} {col_labels[2]:<10} {col_labels[3]:<10}"
     )
-    for i, row in enumerate(results):
+
+    for i in range(idx + 1):
+        row = results[i]
         print(
             f"{row_labels[i]:<10} {row[0]:<10.4f} {row[1]:<10.4f} {row[2]:<10.4f} {row[3]:<10.4f}"
         )
+
     print(
         f"{row_labels[-2]:<10} {np.mean(results[:idx + 1, 0]):<10.4f} {np.mean(results[:idx + 1, 1]):<10.4f} {np.mean(results[:idx + 1, 2]):<10.4f} {np.mean(results[:idx + 1, 3]):<10.4f}"
     )
@@ -134,12 +138,12 @@ def summarize_results(results: np.ndarray, idx: int):
     )
 
 
-def save_results_csv(results: np.ndarray, args, prefix: str):
+def save_results_csv(results: np.ndarray, args, prefix: str, seeds: List[int]):
     final_results = np.vstack([results, np.mean(results, axis=0), np.std(results, axis=0)])
     df = pd.DataFrame(
         final_results,
         columns=["Acc", "F1", "BCA", "EER"],
-        index=["2024", "2025", "2026", "2027", "2028", "Avg", "Std"],
+        index=[*(str(seed) for seed in seeds), "Avg", "Std"],
     ).round(4)
     csv_path = args.csv_root / f"{args.dataset}"
     if not os.path.exists(csv_path):
@@ -147,19 +151,16 @@ def save_results_csv(results: np.ndarray, args, prefix: str):
     df.to_csv(csv_path / f"{prefix}_{args.model}.csv")
 
 
-def main():
-    args = init_args()
-    args = set_args(args)
-    device = torch.device("cuda:" + str(args.gpuid) if torch.cuda.is_available() else "cpu")
+def run_experiment(args, device: torch.device, is_task: bool):
+    prefix = "Task" if is_task else "UID"
+    seeds = list(range(args.seed, args.seed + args.repeats))
+    results = np.zeros((len(seeds), 4))
 
-    prefix = "Task" if args.is_task else "UID"
-    results = np.zeros((5, 4))
+    print(f"========== 开始{prefix}分类 ==========")
 
-    log_path = args.log_root / f"{args.dataset}_{prefix}_{args.model}.log"
-    sys.stdout = Logger(log_path)
-
-    for idx, seed in enumerate(range(args.seed, args.seed + args.repeats)):
+    for idx, seed in enumerate(seeds):
         args.seed = seed
+        args.is_task = is_task
         start_time = time.time()
         print("=" * 30)
         print(f"dataset: {args.dataset}")
@@ -187,15 +188,29 @@ def main():
         )
 
         results[idx] = [test_acc, test_f1, test_bca, test_eer]
-        summarize_results(results, idx)
+        summarize_results(results, seeds, idx, prefix)
         print(
             f"训练集:验证集:测试集={len(trainloader.dataset)}:{len(valloader.dataset)}:{len(testloader.dataset)}"
         )
         gc.collect()
 
-    print("-" * 50)
+    print(f"========== {prefix}分类完成 ==========")
     print(model)
-    save_results_csv(results, args, prefix)
+    save_results_csv(results, args, prefix, seeds)
+
+
+def main():
+    args = init_args()
+    args = set_args(args)
+    device = torch.device("cuda:" + str(args.gpuid) if torch.cuda.is_available() else "cpu")
+
+    log_path = args.log_root / f"{args.dataset}_joint_{args.model}.log"
+    sys.stdout = Logger(log_path)
+
+    base_seed = args.seed
+    for is_task in (True, False):
+        args.seed = base_seed
+        run_experiment(args, device, is_task)
 
 
 if __name__ == "__main__":
