@@ -87,10 +87,6 @@ def e_step(model, dataloader, device, temperature, smoothing, inner_steps, inner
 
 
 def m_step(model, dataloader, device, optimizer, soft_labels):
-    return soft_targets.detach()
-
-
-def em_one_epoch(model, dataloader, device, optimizer, temperature, smoothing):
     model.train()
 
     total_loss = 0.0
@@ -106,16 +102,6 @@ def em_one_epoch(model, dataloader, device, optimizer, temperature, smoothing):
         logits = model(b_x)
         log_probs = torch.log_softmax(logits, dim=1)
         loss = -(targets * log_probs).sum(dim=1).mean()
-    total_log_likelihood = 0.0
-    cached_soft_labels = []
-
-    for batch_idx, (b_x, _) in enumerate(dataloader):
-        b_x = b_x.to(device)
-
-        logits = model(b_x)
-        soft_targets = compute_soft_labels(logits, temperature, smoothing)
-        log_probs = torch.log_softmax(logits, dim=1)
-        loss = -(soft_targets * log_probs).sum(dim=1).mean()
 
         optimizer.zero_grad()
         loss.backward()
@@ -137,17 +123,6 @@ def build_consistent_loader(trainloader):
         pin_memory=trainloader.pin_memory,
         drop_last=False,
     )
-        batch_size = b_x.size(0)
-        total_loss += loss.item() * batch_size
-        total_samples += batch_size
-        total_log_likelihood += (-loss.item()) * batch_size
-        cached_soft_labels.append(soft_targets.cpu())
-
-    avg_loss = total_loss / max(total_samples, 1)
-    avg_log_likelihood = total_log_likelihood / max(total_samples, 1)
-    cached_soft_labels = torch.cat(cached_soft_labels, dim=0) if cached_soft_labels else torch.empty(0)
-
-    return avg_loss, avg_log_likelihood, cached_soft_labels
 
 
 def EMTrain(trainloader, valloader, savepath, args):
@@ -196,31 +171,6 @@ def EMTrain(trainloader, valloader, savepath, args):
             soft_labels=cached_soft_labels,
         )
 
-    train_acc_all = []
-    train_f1_all = []
-    train_bca_all = []
-    train_eer_all = []
-    val_acc_all = []
-    val_f1_all = []
-    val_bca_all = []
-    val_eer_all = []
-    loss_item_train = []
-    loss_item_val = []
-
-    prev_log_likelihood = None
-
-    for epoch in tqdm(range(args.em_iters), desc="EM Training:"):
-        em_loss, em_ll, _ = em_one_epoch(
-            model=model,
-            dataloader=trainloader,
-            device=device,
-            optimizer=optimizer,
-            temperature=args.em_temperature,
-            smoothing=args.em_label_smoothing,
-        )
-
-        loss_item_train.append(em_loss)
-
         val_loss, val_acc, val_f1, val_bca, val_eer = evaluate(
             model=model,
             dataloader=valloader,
@@ -228,10 +178,6 @@ def EMTrain(trainloader, valloader, savepath, args):
         )
 
         val_acc_all.append(val_acc)
-        val_f1_all.append(val_f1)
-        val_bca_all.append(val_bca)
-        val_eer_all.append(val_eer)
-        loss_item_val.append(val_loss)
 
         # Early stopping based on validation accuracy
         if (epoch - best_epoch) > args.earlystop:
@@ -261,17 +207,6 @@ def EMTrain(trainloader, valloader, savepath, args):
     if os.path.isfile(best_ckpt):
         model.load_state_dict(torch.load(best_ckpt, map_location=device))
 
-        # Estimate training metrics using cached soft labels
-        if len(trainloader.dataset) > 0:
-            train_acc_all.append(val_acc)
-            train_f1_all.append(val_f1)
-            train_bca_all.append(val_bca)
-            train_eer_all.append(val_eer)
-
-        if (epoch + 1) % 10 == 0:
-            print(f"Epoch:{epoch+1}\tTrain_negLL:{em_loss:.6f}\tVal_acc:{val_acc:.4f}\tVal_loss:{val_loss:.6f}")
-            print(f"  Val_F1:{val_f1:.4f}, BCA:{val_bca:.4f}, EER:{val_eer:.4f}")
-
     print("-" * 20 + "EM 训练完成!" + "-" * 20)
     print(f"总训练轮数-{epoch+1}, 早停轮数-{best_epoch+1}")
     print(f"验证集最佳准确率为{best_acc*100:.2f}%")
@@ -294,16 +229,6 @@ def main():
     ]:
         if not hasattr(args, field):
             setattr(args, field, default)
-    if not hasattr(args, "em_iters"):
-        args.em_iters = 100
-    if not hasattr(args, "em_threshold"):
-        args.em_threshold = 1e-4
-    if not hasattr(args, "em_temperature"):
-        args.em_temperature = 1.0
-    if not hasattr(args, "em_label_smoothing"):
-        args.em_label_smoothing = 0.0
-    if not hasattr(args, "em_init_model"):
-        args.em_init_model = None
 
     args = set_args(args)
     device = torch.device("cuda:"+str(args.gpuid) if torch.cuda.is_available() else "cpu")
@@ -373,5 +298,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
     main()

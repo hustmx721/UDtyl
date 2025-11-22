@@ -245,6 +245,3 @@ def Load_Dataloader(seed, Task, batchsize, is_task=True):
     elif Task in M3CV:
         trainloader, valloader, testloader = GetLoaderM3CV(seed,Task=Task, batchsize=batchsize, is_task=is_task)
     return trainloader, valloader, testloader
-
-# GetLoaderM3CV(123, "Rest", is_task=False)
-GetLoaderOpenBMI(456, "MI", is_task=False)
