@@ -6,9 +6,9 @@ import warnings
 warnings.filterwarnings("ignore")
 
 import numpy as np
-import torch
 import pandas as pd
-from torch.utils.data import DataLoader
+import torch
+import torch.nn.functional as F
 from tqdm import tqdm
 
 from utils.dataset import set_seed
@@ -18,117 +18,94 @@ from utils.Logging import Logger
 from evaluate import evaluate
 
 
-def compute_soft_labels(logits: torch.Tensor, temperature: float, smoothing: float) -> torch.Tensor:
-    scaled_logits = logits / max(temperature, 1e-6)
-    soft_targets = torch.softmax(scaled_logits, dim=1)
-    if smoothing > 0:
-        num_classes = soft_targets.size(1)
-        soft_targets = (1 - smoothing) * soft_targets + smoothing / num_classes
-    return soft_targets
+def clamp_tensor(x: torch.Tensor, clip_min, clip_max):
+    if clip_min is not None and clip_max is not None:
+        return x.clamp(clip_min, clip_max)
+    if clip_min is not None:
+        return x.clamp(min=clip_min)
+    if clip_max is not None:
+        return x.clamp(max=clip_max)
+    return x
 
 
-def refine_soft_labels(logits: torch.Tensor, initial_soft: torch.Tensor, steps: int, lr: float, entropy_reg: float) -> torch.Tensor:
-    """
-    Inner minimization (min over q): optimize soft labels w.r.t. negative log-likelihood
-    with an optional entropy regularizer. The model logits are treated as constants
-    so this realizes the min-min structure from EM_Huang (q-update then theta-update).
-    """
-    if steps <= 0:
-        return initial_soft.detach()
-
-    soft = initial_soft.clone().detach().requires_grad_(True)
-    log_probs = torch.log_softmax(logits.detach(), dim=1)
-
-    for _ in range(steps):
-        loss = -(soft * log_probs).sum(dim=1).mean()
-        if entropy_reg > 0:
-            entropy = -(soft * torch.log(soft.clamp_min(1e-12))).sum(dim=1).mean()
-            loss = loss + entropy_reg * entropy
-
-        grad = torch.autograd.grad(loss, soft, retain_graph=False)[0]
-        with torch.no_grad():
-            soft -= lr * grad
-            soft.clamp_(min=1e-8)
-            soft /= soft.sum(dim=1, keepdim=True)
-
-        soft.requires_grad_(True)
-
-    return soft.detach()
+def init_samplewise_noise(trainloader, eps: float, device: torch.device):
+    first_batch = next(iter(trainloader))
+    x = first_batch[0]
+    x_shape = x.shape[1:]
+    delta = torch.zeros((len(trainloader.dataset),) + x_shape, device=device)
+    delta = clamp_tensor(delta, -eps, eps)
+    return delta
 
 
-def e_step(model, dataloader, device, temperature, smoothing, inner_steps, inner_lr, entropy_reg):
-    model.eval()
-
-    cached_soft_labels = []
-    total_samples = 0
-    total_log_likelihood = 0.0
-
-    with torch.no_grad():
-        for b_x, _ in dataloader:
-            b_x = b_x.to(device)
-            logits = model(b_x)
-            base_soft = compute_soft_labels(logits, temperature, smoothing)
-
-            if inner_steps > 0:
-                refined_soft = refine_soft_labels(logits, base_soft, inner_steps, inner_lr, entropy_reg)
-            else:
-                refined_soft = base_soft.detach()
-
-            log_probs = torch.log_softmax(logits.detach() / max(temperature, 1e-6), dim=1)
-            batch_ll = (refined_soft * log_probs).sum(dim=1)
-
-            cached_soft_labels.append(refined_soft.cpu())
-            total_log_likelihood += batch_ll.sum().item()
-            total_samples += b_x.size(0)
-
-    avg_log_likelihood = total_log_likelihood / max(total_samples, 1)
-    cached_soft_labels = torch.cat(cached_soft_labels, dim=0) if cached_soft_labels else torch.empty(0)
-    return avg_log_likelihood, cached_soft_labels
-
-
-def m_step(model, dataloader, device, optimizer, soft_labels):
+def train_one_epoch_with_noise(model, trainloader, delta, optimizer, device, eps, clip_min=None, clip_max=None):
     model.train()
-
     total_loss = 0.0
     total_samples = 0
-    offset = 0
+    correct = 0
 
-    for b_x, _ in dataloader:
-        bsz = b_x.size(0)
-        targets = soft_labels[offset:offset + bsz].to(device)
-        offset += bsz
-
+    for batch in trainloader:
+        if len(batch) == 3:
+            b_x, b_y, idx = batch
+        else:
+            raise ValueError("EM training requires dataloader batches formatted as (x, y, idx). Set include_index=True when loading data.")
         b_x = b_x.to(device)
-        logits = model(b_x)
-        log_probs = torch.log_softmax(logits, dim=1)
-        loss = -(targets * log_probs).sum(dim=1).mean()
+        b_y = b_y.to(device)
+        idx = torch.as_tensor(idx, device=device, dtype=torch.long)
+
+        pert = delta[idx]
+        x_adv = clamp_tensor(b_x + pert, clip_min, clip_max)
+
+        logits = model(x_adv)
+        loss = F.cross_entropy(logits, b_y.long())
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        total_loss += loss.item() * bsz
-        total_samples += bsz
+        total_loss += loss.item() * b_x.size(0)
+        total_samples += b_x.size(0)
+        with torch.no_grad():
+            pred = logits.argmax(dim=1)
+            correct += (pred == b_y).sum().item()
 
+    train_err = 1.0 - correct / max(total_samples, 1)
     avg_loss = total_loss / max(total_samples, 1)
-    return avg_loss
+    return train_err, avg_loss
 
 
-def build_consistent_loader(trainloader):
-    return DataLoader(
-        dataset=trainloader.dataset,
-        batch_size=trainloader.batch_size,
-        shuffle=False,
-        num_workers=trainloader.num_workers,
-        pin_memory=trainloader.pin_memory,
-        drop_last=False,
-    )
+def update_samplewise_noise(model, trainloader, delta, eps, alpha, pgd_steps, device, clip_min=None, clip_max=None):
+    model.eval()
+    for batch in trainloader:
+        if len(batch) == 3:
+            b_x, b_y, idx = batch
+        else:
+            raise ValueError("EM training requires dataloader batches formatted as (x, y, idx). Set include_index=True when loading data.")
+        b_x = b_x.to(device)
+        b_y = b_y.to(device)
+        idx = torch.as_tensor(idx, device=device, dtype=torch.long)
+
+        x_adv = clamp_tensor((b_x + delta[idx]).detach(), clip_min, clip_max)
+        x_adv.requires_grad_(True)
+
+        for _ in range(pgd_steps):
+            logits = model(x_adv)
+            loss = F.cross_entropy(logits, b_y.long())
+            grad = torch.autograd.grad(loss, x_adv)[0]
+
+            with torch.no_grad():
+                x_adv = x_adv - alpha * grad.sign()
+                perturb = torch.clamp(x_adv - b_x, -eps, eps)
+                x_adv = clamp_tensor(b_x + perturb, clip_min, clip_max)
+                x_adv.requires_grad_(True)
+
+        delta[idx] = (x_adv - b_x).detach()
 
 
-def EMTrain(trainloader, valloader, savepath, args):
-    print("-" * 20 + "开始 EM 训练!" + "-" * 20)
+def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args, device):
+    eps = args.em_eps
+    alpha = args.em_alpha if args.em_alpha is not None else eps / 10.0
+    outer_rounds = args.em_iters if args.em_iters is not None else args.em_outer
 
-    model, optimizer, device = load_all(args)
     if args.em_init_model:
         init_path = os.path.expanduser(args.em_init_model)
         if os.path.isfile(init_path):
@@ -138,37 +115,37 @@ def EMTrain(trainloader, valloader, savepath, args):
         else:
             print(f"Warning: init model path {init_path} not found, training from scratch.")
 
-    torch.cuda.empty_cache()
-    torch.cuda.set_device(device)
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
+        torch.cuda.set_device(device)
 
-    best_epoch = 0
-    best_acc = 0
-    prev_log_likelihood = None
+    delta = init_samplewise_noise(trainloader, eps, device)
+    best_acc = 0.0
+    best_outer = -1
 
-    val_acc_all = []
+    for outer in tqdm(range(outer_rounds), desc="Error-Minimization"):
+        for _ in range(args.em_theta_epochs):
+            train_err, train_loss = train_one_epoch_with_noise(
+                model=model,
+                trainloader=trainloader,
+                delta=delta,
+                optimizer=optimizer,
+                device=device,
+                eps=eps,
+                clip_min=args.em_clip_min,
+                clip_max=args.em_clip_max,
+            )
 
-    em_loader = build_consistent_loader(trainloader)
-
-    for epoch in tqdm(range(args.em_iters), desc="EM Training:"):
-        # E-step: min over q (soft labels)
-        em_ll, cached_soft_labels = e_step(
+        update_samplewise_noise(
             model=model,
-            dataloader=em_loader,
+            trainloader=trainloader,
+            delta=delta,
+            eps=eps,
+            alpha=alpha,
+            pgd_steps=args.em_pgd_steps,
             device=device,
-            temperature=args.em_temperature,
-            smoothing=args.em_label_smoothing,
-            inner_steps=args.em_inner_steps,
-            inner_lr=args.em_inner_lr,
-            entropy_reg=args.em_entropy_reg,
-        )
-
-        # M-step: min over theta (model params)
-        em_loss = m_step(
-            model=model,
-            dataloader=em_loader,
-            device=device,
-            optimizer=optimizer,
-            soft_labels=cached_soft_labels,
+            clip_min=args.em_clip_min,
+            clip_max=args.em_clip_max,
         )
 
         val_loss, val_acc, val_f1, val_bca, val_eer = evaluate(
@@ -177,63 +154,36 @@ def EMTrain(trainloader, valloader, savepath, args):
             args=args,
         )
 
-        val_acc_all.append(val_acc)
+        print(
+            f"[Outer {outer+1}] train_err={train_err:.4f}, train_loss={train_loss:.4f}, "
+            f"val_acc={val_acc:.4f}, val_loss={val_loss:.4f}"
+        )
+        print(f"  Val_F1={val_f1:.4f}, BCA={val_bca:.4f}, EER={val_eer:.4f}")
 
-        # Early stopping based on validation accuracy
-        if (epoch - best_epoch) > args.earlystop:
-            print(f"Early stopping triggered at epoch {epoch+1}.")
-            break
         if val_acc > best_acc:
             best_acc = val_acc
-            best_epoch = epoch
-            torch.save(model.state_dict(),
-                       os.path.join(savepath, f"EM_{args.model}_{args.seed}.pth"))
+            best_outer = outer
+            torch.save(model.state_dict(), os.path.join(savepath, f"EM_{args.model}_{args.seed}.pth"))
+            torch.save(delta.cpu(), os.path.join(savepath, f"EM_delta_{args.model}_{args.seed}.pt"))
 
-        # Convergence check based on training log-likelihood
-        if prev_log_likelihood is not None:
-            delta_ll = abs(em_ll - prev_log_likelihood)
-            if delta_ll < args.em_threshold:
-                print(f"EM converged at epoch {epoch+1} with ΔLL={delta_ll:.6f} < {args.em_threshold}")
-                break
-        prev_log_likelihood = em_ll
+        if train_err < args.em_lambda:
+            print(f"Stop since train_err={train_err:.4f} < λ={args.em_lambda}")
+            break
+        if (outer - best_outer) > args.earlystop:
+            print(f"Early stopping triggered at outer round {outer+1}.")
+            break
 
-        if (epoch + 1) % 10 == 0:
-            print(
-                f"Epoch:{epoch+1}\tTrain_negLL:{em_loss:.6f}\tVal_acc:{val_acc:.4f}\tVal_loss:{val_loss:.6f}\tAvg_LL:{em_ll:.6f}")
-            print(f"  Val_F1:{val_f1:.4f}, BCA:{val_bca:.4f}, EER:{val_eer:.4f}")
-
-    # Reload best checkpoint if it was saved
     best_ckpt = os.path.join(savepath, f"EM_{args.model}_{args.seed}.pth")
     if os.path.isfile(best_ckpt):
         model.load_state_dict(torch.load(best_ckpt, map_location=device))
 
-    print("-" * 20 + "EM 训练完成!" + "-" * 20)
-    print(f"总训练轮数-{epoch+1}, 早停轮数-{best_epoch+1}")
-    print(f"验证集最佳准确率为{best_acc*100:.2f}%")
-    print(f"验证集平均准确率为{np.mean(np.array(val_acc_all))*100:.2f}%")
-    return model
+    return model, delta
 
 
 def main():
     args = init_args()
-    # Extend EM-specific defaults after parsing
-    for field, default in [
-        ("em_iters", 100),
-        ("em_threshold", 1e-4),
-        ("em_temperature", 1.0),
-        ("em_label_smoothing", 0.0),
-        ("em_init_model", None),
-        ("em_inner_steps", 5),
-        ("em_inner_lr", 0.1),
-        ("em_entropy_reg", 0.0),
-    ]:
-        if not hasattr(args, field):
-            setattr(args, field, default)
-
     args = set_args(args)
-    device = torch.device("cuda:"+str(args.gpuid) if torch.cuda.is_available() else "cpu")
     results = np.zeros((5, 4))
-
     log_path = args.log_root / f"{args.dataset}_EM_{args.model}.log"
     sys.stdout = Logger(log_path)
 
@@ -247,12 +197,14 @@ def main():
         print(f"seed   : {args.seed}")
         print(f"gpu    : {args.gpuid}")
         print(f"is_task: {args.is_task}")
-        print(f"em_iters: {args.em_iters}, em_threshold: {args.em_threshold}")
-        print(f"temperature: {args.em_temperature}, smoothing: {args.em_label_smoothing}")
-        print(f"inner_steps: {args.em_inner_steps}, inner_lr: {args.em_inner_lr}, entropy_reg: {args.em_entropy_reg}")
+        print(
+            f"em_outer: {args.em_outer}, em_theta_epochs: {args.em_theta_epochs}, em_pgd_steps: {args.em_pgd_steps}, "
+            f"em_eps: {args.em_eps}, em_alpha: {args.em_alpha if args.em_alpha is not None else args.em_eps/10.0}, "
+            f"em_lambda: {args.em_lambda}"
+        )
 
         set_seed(args.seed)
-        trainloader, valloader, testloader = load_data(args)
+        trainloader, valloader, testloader = load_data(args, include_index=True)
 
         print("=====================data are prepared===============")
         print(f"累计用时{time.time() - start_time:.4f}s!")
@@ -261,7 +213,16 @@ def main():
         if not os.path.exists(model_path):
             os.makedirs(model_path)
 
-        model = EMTrain(trainloader, valloader, model_path, args)
+        model, optimizer, device = load_all(args)
+        model, delta = em_error_min_train(
+            model=model,
+            optimizer=optimizer,
+            trainloader=trainloader,
+            valloader=valloader,
+            savepath=model_path,
+            args=args,
+            device=device,
+        )
         print("=====================model are trained===============")
         print(f"累计用时{time.time() - start_time:.4f}s!")
 
@@ -269,13 +230,13 @@ def main():
 
         results[idx] = [test_acc, test_f1, test_bca, test_eer]
         print(
-            f"测试集平均指标为  Acc:{test_acc * 100:.2f}%;  F1:{test_f1 * 100:.2f}%;  BCA:{test_bca * 100:.2f}%; EER:{test_eer * 100:.2f}%;")
+            f"测试集平均指标为  Acc:{test_acc * 100:.2f}%;  F1:{test_f1 * 100:.2f}%;  BCA:{test_bca * 100:.2f}%; EER:{test_eer * 100:.2f}%;"
+        )
         print("=====================test are done===================")
 
         row_labels = ['2024', '2025', '2026', '2027', '2028', "Avg", "Std"]
         col_labels = ['Acc', 'F1', 'BCA', 'EER']
-        print(
-            f"训练集:验证集:测试集={len(trainloader.dataset)}:{len(valloader.dataset)}:{len(testloader.dataset)}")
+        print(f"训练集:验证集:测试集={len(trainloader.dataset)}:{len(valloader.dataset)}:{len(testloader.dataset)}")
         print(f"{'SEED':<10} {col_labels[0]:<10} {col_labels[1]:<10} {col_labels[2]:<10} {col_labels[3]:<10}")
         for i, row in enumerate(results):
             print(f"{row_labels[i]:<10} {row[0]:<10.4f} {row[1]:<10.4f} {row[2]:<10.4f} {row[3]:<10.4f}")
