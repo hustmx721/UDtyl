@@ -28,6 +28,7 @@ def clamp_tensor(x: torch.Tensor, clip_min, clip_max):
     return x
 
 
+# initiate the perturbation -- delta
 def init_samplewise_noise(trainloader, eps: float, device: torch.device):
     first_batch = next(iter(trainloader))
     x = first_batch[0]
@@ -52,6 +53,7 @@ def train_one_epoch_with_noise(model, trainloader, delta, optimizer, device, eps
         b_y = b_y.to(device)
         idx = torch.as_tensor(idx, device=device, dtype=torch.long)
 
+        # 固定delta 优化模型参数theta, 双层min-min的外层优化
         pert = delta[idx]
         x_adv = clamp_tensor(b_x + pert, clip_min, clip_max)
 
