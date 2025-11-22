@@ -272,7 +272,7 @@ def run_mode(base_args, is_task: bool, results: np.ndarray, log_prefix: str, pre
 def main():
     args = init_args()
     args = set_args(args)
-    log_path = args.log_root / f"{args.dataset}_EM_{args.model}.log"
+    log_path = args.log_root / f"EM_{args.dataset}_{args.model}.log"
     sys.stdout = Logger(log_path)
 
     task_results = np.zeros((5, 4))
