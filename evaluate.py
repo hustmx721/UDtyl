@@ -64,7 +64,11 @@ def evaluate(model, dataloader, args=None, device=None):
     all_labels = []
 
     with torch.no_grad():
-        for x, y in dataloader:
+        for batch in dataloader:
+            if len(batch) == 3:
+                x, y, _ = batch
+            else:
+                x, y = batch
             x, y = x.to(device), y.to(device)
             logits = model(x)
             loss = clf_loss_func(logits, y.long())

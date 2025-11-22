@@ -10,6 +10,7 @@ import pandas as pd
 import torch
 import torch.nn.functional as F
 from tqdm import tqdm
+import copy
 
 from utils.dataset import set_seed
 from utils.init_all import init_args, set_args, load_all, load_data
@@ -28,12 +29,11 @@ def clamp_tensor(x: torch.Tensor, clip_min, clip_max):
     return x
 
 
-# initiate the perturbation -- delta
-def init_samplewise_noise(trainloader, eps: float, device: torch.device):
+def init_classwise_noise(trainloader, n_classes: int, eps: float, device: torch.device):
     first_batch = next(iter(trainloader))
     x = first_batch[0]
     x_shape = x.shape[1:]
-    delta = torch.zeros((len(trainloader.dataset),) + x_shape, device=device)
+    delta = torch.zeros((n_classes,) + x_shape, device=device)
     delta = clamp_tensor(delta, -eps, eps)
     return delta
 
@@ -45,20 +45,15 @@ def train_one_epoch_with_noise(model, trainloader, delta, optimizer, device, eps
     correct = 0
 
     for batch in trainloader:
-        if len(batch) == 3:
-            b_x, b_y, idx = batch
-        else:
-            raise ValueError("EM training requires dataloader batches formatted as (x, y, idx). Set include_index=True when loading data.")
+        b_x, b_y = batch[:2]
         b_x = b_x.to(device)
-        b_y = b_y.to(device)
-        idx = torch.as_tensor(idx, device=device, dtype=torch.long)
+        b_y = b_y.to(device).long()
 
-        # 固定delta 优化模型参数theta, 双层min-min的外层优化
-        pert = delta[idx]
+        pert = delta[b_y]
         x_adv = clamp_tensor(b_x + pert, clip_min, clip_max)
 
         logits = model(x_adv)
-        loss = F.cross_entropy(logits, b_y.long())
+        loss = F.cross_entropy(logits, b_y)
 
         optimizer.zero_grad()
         loss.backward()
@@ -75,35 +70,40 @@ def train_one_epoch_with_noise(model, trainloader, delta, optimizer, device, eps
     return train_err, avg_loss
 
 
-def update_samplewise_noise(model, trainloader, delta, eps, alpha, pgd_steps, device, clip_min=None, clip_max=None):
+def update_classwise_noise(model, trainloader, delta, eps, alpha, pgd_steps, device, clip_min=None, clip_max=None):
     model.eval()
     for batch in trainloader:
-        if len(batch) == 3:
-            b_x, b_y, idx = batch
-        else:
-            raise ValueError("EM training requires dataloader batches formatted as (x, y, idx). Set include_index=True when loading data.")
+        b_x, b_y = batch[:2]
         b_x = b_x.to(device)
-        b_y = b_y.to(device)
-        idx = torch.as_tensor(idx, device=device, dtype=torch.long)
+        b_y = b_y.to(device).long()
 
-        x_adv = clamp_tensor((b_x + delta[idx]).detach(), clip_min, clip_max)
-        x_adv.requires_grad_(True)
+        for cls in b_y.unique():
+            cls_mask = b_y == cls
+            x_cls = b_x[cls_mask]
+            y_cls = b_y[cls_mask]
+            if x_cls.numel() == 0:
+                continue
 
-        for _ in range(pgd_steps):
-            logits = model(x_adv)
-            loss = F.cross_entropy(logits, b_y.long())
-            grad = torch.autograd.grad(loss, x_adv)[0]
+            x_adv = clamp_tensor((x_cls + delta[cls]).detach(), clip_min, clip_max)
+            x_adv.requires_grad_(True)
+
+            for _ in range(pgd_steps):
+                logits = model(x_adv)
+                loss = F.cross_entropy(logits, y_cls)
+                grad = torch.autograd.grad(loss, x_adv)[0]
+
+                with torch.no_grad():
+                    x_adv = x_adv - alpha * grad.sign()
+                    perturb = torch.clamp(x_adv - x_cls, -eps, eps)
+                    x_adv = clamp_tensor(x_cls + perturb, clip_min, clip_max)
+                    x_adv.requires_grad_(True)
 
             with torch.no_grad():
-                x_adv = x_adv - alpha * grad.sign()
-                perturb = torch.clamp(x_adv - b_x, -eps, eps)
-                x_adv = clamp_tensor(b_x + perturb, clip_min, clip_max)
-                x_adv.requires_grad_(True)
-
-        delta[idx] = (x_adv - b_x).detach()
+                perturb = torch.clamp(x_adv - x_cls, -eps, eps)
+                delta[cls] = clamp_tensor(perturb.mean(dim=0), -eps, eps)
 
 
-def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args, device):
+def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args, device, mode_tag: str):
     eps = args.em_eps
     alpha = args.em_alpha if args.em_alpha is not None else eps / 10.0
     outer_rounds = args.em_iters if args.em_iters is not None else args.em_outer
@@ -121,7 +121,7 @@ def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args,
         torch.cuda.empty_cache()
         torch.cuda.set_device(device)
 
-    delta = init_samplewise_noise(trainloader, eps, device)
+    delta = init_classwise_noise(trainloader, args.nclass, eps, device)
     best_acc = 0.0
     best_outer = -1
 
@@ -138,7 +138,7 @@ def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args,
                 clip_max=args.em_clip_max,
             )
 
-        update_samplewise_noise(
+        update_classwise_noise(
             model=model,
             trainloader=trainloader,
             delta=delta,
@@ -165,8 +165,8 @@ def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args,
         if val_acc > best_acc:
             best_acc = val_acc
             best_outer = outer
-            torch.save(model.state_dict(), os.path.join(savepath, f"EM_{args.model}_{args.seed}.pth"))
-            torch.save(delta.cpu(), os.path.join(savepath, f"EM_delta_{args.model}_{args.seed}.pt"))
+            torch.save(model.state_dict(), os.path.join(savepath, f"EM_{mode_tag}_{args.model}_{args.seed}.pth"))
+            torch.save(delta.cpu(), os.path.join(savepath, f"EM_delta_{mode_tag}_{args.model}_{args.seed}.pt"))
 
         if train_err < args.em_lambda:
             print(f"Stop since train_err={train_err:.4f} < λ={args.em_lambda}")
@@ -175,41 +175,38 @@ def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args,
             print(f"Early stopping triggered at outer round {outer+1}.")
             break
 
-    best_ckpt = os.path.join(savepath, f"EM_{args.model}_{args.seed}.pth")
+    best_ckpt = os.path.join(savepath, f"EM_{mode_tag}_{args.model}_{args.seed}.pth")
     if os.path.isfile(best_ckpt):
         model.load_state_dict(torch.load(best_ckpt, map_location=device))
 
     return model, delta
 
 
-def main():
-    args = init_args()
-    args = set_args(args)
-    results = np.zeros((5, 4))
-    log_path = args.log_root / f"{args.dataset}_EM_{args.model}.log"
-    sys.stdout = Logger(log_path)
 
-    for idx, seed in enumerate(range(args.seed, args.seed + args.repeats)):
+def run_mode(base_args, is_task: bool, results: np.ndarray, log_prefix: str):
+    for idx, seed in enumerate(range(base_args.seed, base_args.seed + base_args.repeats)):
+        args = copy.deepcopy(base_args)
         args.seed = seed
-        args.is_task = True
+        args.is_task = is_task
+        args = set_args(args)
         start_time = time.time()
+        mode_tag = "Task" if args.is_task else "UID"
         print("=" * 30)
-        print(f"dataset: {args.dataset}")
-        print(f"model  : {args.model}")
-        print(f"seed   : {args.seed}")
-        print(f"gpu    : {args.gpuid}")
-        print(f"is_task: {args.is_task}")
+        print(f"[{mode_tag}] dataset: {args.dataset}")
+        print(f"[{mode_tag}] model  : {args.model}")
+        print(f"[{mode_tag}] seed   : {args.seed}")
+        print(f"[{mode_tag}] gpu    : {args.gpuid}")
+        print(f"[{mode_tag}] nclass : {args.nclass}")
         print(
-            f"em_outer: {args.em_outer}, em_theta_epochs: {args.em_theta_epochs}, em_pgd_steps: {args.em_pgd_steps}, "
-            f"em_eps: {args.em_eps}, em_alpha: {args.em_alpha if args.em_alpha is not None else args.em_eps/10.0}, "
-            f"em_lambda: {args.em_lambda}"
+            f"[{mode_tag}] em_outer: {args.em_outer}, em_theta_epochs: {args.em_theta_epochs}, em_pgd_steps: {args.em_pgd_steps}, "
+            f"em_eps: {args.em_eps}, em_alpha: {args.em_alpha if args.em_alpha is not None else args.em_eps/10.0}, em_lambda: {args.em_lambda}"
         )
 
         set_seed(args.seed)
-        trainloader, valloader, testloader = load_data(args, include_index=True)
+        trainloader, valloader, testloader = load_data(args, include_index=False)
 
-        print("=====================data are prepared===============")
-        print(f"累计用时{time.time() - start_time:.4f}s!")
+        print(f"[{mode_tag}] =====================data are prepared===============")
+        print(f"[{mode_tag}] 累计用时{time.time() - start_time:.4f}s!")
 
         model_path = args.model_root / f"{args.dataset}"
         if not os.path.exists(model_path):
@@ -224,21 +221,22 @@ def main():
             savepath=model_path,
             args=args,
             device=device,
+            mode_tag=mode_tag,
         )
-        print("=====================model are trained===============")
-        print(f"累计用时{time.time() - start_time:.4f}s!")
+        print(f"[{mode_tag}] =====================model are trained===============")
+        print(f"[{mode_tag}] 累计用时{time.time() - start_time:.4f}s!")
 
         test_loss, test_acc, test_f1, test_bca, test_eer = evaluate(model, testloader, args, device)
 
         results[idx] = [test_acc, test_f1, test_bca, test_eer]
         print(
-            f"测试集平均指标为  Acc:{test_acc * 100:.2f}%;  F1:{test_f1 * 100:.2f}%;  BCA:{test_bca * 100:.2f}%; EER:{test_eer * 100:.2f}%;"
+            f"[{mode_tag}] 测试集平均指标为  Acc:{test_acc * 100:.2f}%;  F1:{test_f1 * 100:.2f}%;  BCA:{test_bca * 100:.2f}%; EER:{test_eer * 100:.2f}%;",
         )
-        print("=====================test are done===================")
+        print(f"[{mode_tag}] =====================test are done===================")
 
         row_labels = ['2024', '2025', '2026', '2027', '2028', "Avg", "Std"]
         col_labels = ['Acc', 'F1', 'BCA', 'EER']
-        print(f"训练集:验证集:测试集={len(trainloader.dataset)}:{len(valloader.dataset)}:{len(testloader.dataset)}")
+        print(f"[{mode_tag}] 训练集:验证集:测试集={len(trainloader.dataset)}:{len(valloader.dataset)}:{len(testloader.dataset)}")
         print(f"{'SEED':<10} {col_labels[0]:<10} {col_labels[1]:<10} {col_labels[2]:<10} {col_labels[3]:<10}")
         for i, row in enumerate(results):
             print(f"{row_labels[i]:<10} {row[0]:<10.4f} {row[1]:<10.4f} {row[2]:<10.4f} {row[3]:<10.4f}")
@@ -246,19 +244,32 @@ def main():
         print(f"{row_labels[-1]:<10} {np.std(results[:idx + 1, 0]):<10.4f} {np.std(results[:idx + 1, 1]):<10.4f} {np.std(results[:idx + 1, 2]):<10.4f} {np.std(results[:idx + 1, 3]):<10.4f}")
         gc.collect()
 
-    print("-" * 50)
-    print(model)
-
     final_results = np.vstack([results, np.mean(results, axis=0), np.std(results, axis=0)])
     df = pd.DataFrame(final_results,
                       columns=['Acc', 'F1', 'BCA', 'EER'],
                       index=['2024', '2025', '2026', '2027', '2028', "Avg", "Std"])
     df = df.round(4)
-    csv_path = args.csv_root / f"{args.dataset}"
+    csv_path = base_args.csv_root / f"{base_args.dataset}"
     if not os.path.exists(csv_path):
         os.makedirs(csv_path)
-    df.to_csv(csv_path / f"EM_{args.model}.csv")
+    df.to_csv(csv_path / f"EM_{log_prefix}_{base_args.model}.csv")
 
 
-if __name__ == "__main__":
+def main():
+    args = init_args()
+    args = set_args(args)
+    log_path = args.log_root / f"{args.dataset}_EM_{args.model}.log"
+    sys.stdout = Logger(log_path)
+
+    task_results = np.zeros((5, 4))
+    uid_results = np.zeros((5, 4))
+
+    print("运行 Task EM 训练")
+    run_mode(args, True, task_results, "Task")
+
+    print("运行 UID EM 训练")
+    run_mode(args, False, uid_results, "UID")
+
+
+if __name__ == '__main__':
     main()
