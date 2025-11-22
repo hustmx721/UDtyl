@@ -30,17 +30,20 @@ class MyDataset(Dataset):
     A simple PyTorch Dataset for loading data and labels.
     Assumes input data and labels are numpy arrays.
     """
-    def __init__(self, data, label):
+
+    def __init__(self, data, label, include_index: bool = False):
         """
         Initializes the dataset.
         Args:
             data (np.ndarray): The input data array.
             label (np.ndarray): The corresponding label array.
+            include_index (bool): Whether to return the sample index for each item.
         """
         if data.shape[0] != label.shape[0]:
             raise ValueError(f"Data and label must have the same length. Got {data.shape[0]} and {label.shape[0]}.")
         self.data = data
         self.label = label
+        self.include_index = include_index
 
     def __len__(self):
         """Returns the total number of samples."""
@@ -54,14 +57,17 @@ class MyDataset(Dataset):
             idx (int): Index of the sample.
 
         Returns:
-            tuple: A tuple containing the data sample (np.float32) and the label.
+            tuple: A tuple containing the data sample (np.float32), the label, and
+            optionally the sample index when ``include_index`` is True.
         """
         data = self.data[idx].astype(np.float32)
         label = self.label[idx]
-        # Optional: Convert label to torch tensor here if needed, e.g., torch.tensor(label, dtype=torch.long)
+        if self.include_index:
+            return data, label, idx
         return data, label
 
-def ToDataLoader(data, label, mode, batch_size=32, shuffle=None, num_workers=0, pin_memory=True, drop_last=None):
+
+def ToDataLoader(data, label, mode, batch_size=32, shuffle=None, num_workers=0, pin_memory=True, drop_last=None, include_index: bool = False):
     """
     Creates a PyTorch DataLoader for the given data and labels.
 
@@ -89,7 +95,7 @@ def ToDataLoader(data, label, mode, batch_size=32, shuffle=None, num_workers=0, 
     if mode not in ["train", "test"]:
         raise ValueError(f"Mode must be 'train' or 'test'. Got '{mode}'.")
 
-    dataset = MyDataset(data, label)
+    dataset = MyDataset(data, label, include_index=include_index)
 
     dataloader = DataLoader(
         dataset=dataset,
