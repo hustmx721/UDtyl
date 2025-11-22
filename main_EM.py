@@ -103,7 +103,7 @@ def update_classwise_noise(model, trainloader, delta, eps, alpha, pgd_steps, dev
                 delta[cls] = clamp_tensor(perturb.mean(dim=0), -eps, eps)
 
 
-def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args, device, mode_tag: str):
+def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args, device, mode_tag: str, pretrained_delta=None):
     eps = args.em_eps
     alpha = args.em_alpha if args.em_alpha is not None else eps / 10.0
     outer_rounds = args.em_iters if args.em_iters is not None else args.em_outer
@@ -121,7 +121,11 @@ def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args,
         torch.cuda.empty_cache()
         torch.cuda.set_device(device)
 
-    delta = init_classwise_noise(trainloader, args.nclass, eps, device)
+    if pretrained_delta is not None:
+        delta = clamp_tensor(pretrained_delta.to(device), -eps, eps)
+        print(f"Loaded pretrained class-wise perturbations for {mode_tag} mode")
+    else:
+        delta = init_classwise_noise(trainloader, args.nclass, eps, device)
     best_acc = 0.0
     best_outer = -1
 
@@ -183,7 +187,8 @@ def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args,
 
 
 
-def run_mode(base_args, is_task: bool, results: np.ndarray, log_prefix: str):
+def run_mode(base_args, is_task: bool, results: np.ndarray, log_prefix: str, pretrained_deltas=None):
+    collected_deltas = []
     for idx, seed in enumerate(range(base_args.seed, base_args.seed + base_args.repeats)):
         args = copy.deepcopy(base_args)
         args.seed = seed
@@ -213,6 +218,10 @@ def run_mode(base_args, is_task: bool, results: np.ndarray, log_prefix: str):
             os.makedirs(model_path)
 
         model, optimizer, device = load_all(args)
+        init_delta = None
+        if args.is_task and pretrained_deltas is not None and idx < len(pretrained_deltas):
+            init_delta = pretrained_deltas[idx]
+
         model, delta = em_error_min_train(
             model=model,
             optimizer=optimizer,
@@ -222,7 +231,10 @@ def run_mode(base_args, is_task: bool, results: np.ndarray, log_prefix: str):
             args=args,
             device=device,
             mode_tag=mode_tag,
+            pretrained_delta=init_delta,
         )
+        if not args.is_task:
+            collected_deltas.append(delta.detach().cpu())
         print(f"[{mode_tag}] =====================model are trained===============")
         print(f"[{mode_tag}] 累计用时{time.time() - start_time:.4f}s!")
 
@@ -254,6 +266,8 @@ def run_mode(base_args, is_task: bool, results: np.ndarray, log_prefix: str):
         os.makedirs(csv_path)
     df.to_csv(csv_path / f"EM_{log_prefix}_{base_args.model}.csv")
 
+    return collected_deltas
+
 
 def main():
     args = init_args()
@@ -264,11 +278,11 @@ def main():
     task_results = np.zeros((5, 4))
     uid_results = np.zeros((5, 4))
 
-    print("运行 Task EM 训练")
-    run_mode(args, True, task_results, "Task")
-
     print("运行 UID EM 训练")
-    run_mode(args, False, uid_results, "UID")
+    uid_deltas = run_mode(args, False, uid_results, "UID")
+
+    print("运行 Task EM 训练 (使用 UID 的 class-wise 噪声初始化)")
+    run_mode(args, True, task_results, "Task", pretrained_deltas=uid_deltas)
 
 
 if __name__ == '__main__':
