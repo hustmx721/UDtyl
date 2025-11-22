@@ -1,4 +1,5 @@
 import sys
+import os
 from pathlib import Path
 
 import torch
@@ -29,6 +30,21 @@ def init_args():
     parser.add_argument("--model", type=str, default="EEGNet")
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--is_task", type=bool, default=True)
+    parser.add_argument("--torch_threads", type=int, default=4,
+                        help="Number of threads to use for torch operations")
+    parser.add_argument(
+        "--handi_method",
+        type=str,
+        default="rand",
+        choices=["rand", "sn", "stft"],
+        help="Handcrafted UD template type used in main_handi.py",
+    )
+    parser.add_argument(
+        "--handi_alpha",
+        type=float,
+        default=0.05,
+        help="Scaling factor for handcrafted UD templates",
+    )
     # logs path
     parser.add_argument("--log_root", type=Path, default=default_log_root,
                         help="Directory to store training logs")
