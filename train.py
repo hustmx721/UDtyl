@@ -1,8 +1,9 @@
 import torch
 import warnings
+from evaluate import calculate_metrics
+
 warnings.filterwarnings("ignore")
 
-from evaluate import calculate_metrics
 
 def train_one_epoch(model, dataloader, device, optimizer, clf_loss_func):
     model.train()
@@ -18,10 +19,10 @@ def train_one_epoch(model, dataloader, device, optimizer, clf_loss_func):
 
         output = model(b_x)
         pred_y = torch.argmax(output, dim=1)
-        
+
         clf_loss = clf_loss_func(output, b_y.long())
         loss = clf_loss
-        
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -39,8 +40,8 @@ def train_one_epoch(model, dataloader, device, optimizer, clf_loss_func):
 
     y_true = all_labels_cat.numpy()
     y_logits = all_logits_cat.numpy()
-    y_pred = all_logits_cat.argmax(axis=1).numpy() # Calculate predictions once
-    
+    y_pred = all_logits_cat.argmax(axis=1).numpy()
+
     accuracy, f1, bca, eer = calculate_metrics(y_true, y_pred, y_logits)
 
     return avg_loss, accuracy, f1, bca, eer
