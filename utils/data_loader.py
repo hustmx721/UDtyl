@@ -226,7 +226,6 @@ def GetLoaderM3CV(seed, Task: str = "Rest", batchsize: int = 64, is_task: bool =
     # [tx, vx, test_x] = [SubBandSplit(x,8,32,2) for x in [tx, vx, test_x]]
     tx, vx, test_x = [np.expand_dims(x, axis=1) for x in [tx, vx, test_x]] # if EEGNet, DeepConvNet or ShallowConvNet
     print("-----数据预处理完成-----")
-    print(test_y)
     print(f"是否任务分类: {is_task}, 类别数量: {len(np.unique(train_y))}")
     print(f"数据比例-----训练集:验证集:测试集 = {tx.shape}:{vx.shape}:{test_x.shape}")
     [trainloader, validateloader, testloader] = [ToDataLoader(x, y, mode, batch_size=batchsize, include_index=include_index) for x, y, mode \

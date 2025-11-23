@@ -38,7 +38,7 @@ class RandTemplate:
     def apply(self, x: torch.Tensor, user_ids: torch.Tensor) -> torch.Tensor:
         """Add user-specific noise to batched input."""
 
-        B, C, T = x.shape
+        B, _, C, T = x.shape
         assert C == self.C and T == self.T
         template_batch = torch.stack(
             [self.get(int(uid)) for uid in user_ids.tolist()], dim=0
@@ -108,7 +108,7 @@ class SNTemplate:
         return self.templates[user_id]
 
     def apply(self, x: torch.Tensor, user_ids: torch.Tensor) -> torch.Tensor:
-        B, C, T = x.shape
+        B, _, C, T = x.shape
         assert C == self.C and T == self.T
         template_batch = torch.stack(
             [self.get(int(uid)) for uid in user_ids.tolist()], dim=0
@@ -162,7 +162,7 @@ class STFTRandTemplate:
 
     def apply(self, x: torch.Tensor, user_ids: torch.Tensor) -> torch.Tensor:
         assert x.dim() == 3, "x should be [B, C, T]"
-        B, C, T = x.shape
+        B, _, C, T = x.shape
         assert C == self.C, f"Expected C={self.C}, got {C}"
 
         device = x.device
