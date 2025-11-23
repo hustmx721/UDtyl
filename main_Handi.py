@@ -23,8 +23,8 @@ def build_template(trainloader, args, device: torch.device):
     """Create a handcrafted UD template using the first batch statistics."""
     first_batch = next(iter(trainloader))
     sample = first_batch[0].to(device)
-    _, channels, timesteps = sample.shape
-    channel_std = sample.std(dim=(0, 2))
+    bath_size, _, channels, timesteps = sample.shape
+    channel_std = sample.std(dim=(0, 2, 3))
 
     if args.handi_method == "rand":
         return RandTemplate(channels, timesteps, args.handi_alpha, channel_std, str(device))
@@ -60,7 +60,6 @@ def train_one_epoch_with_template(
         else:
             b_x, b_y = batch
             user_ids = b_y
-
         b_x = apply_template(b_x.to(device), user_ids.to(device), template)
         b_y = b_y.to(device)
 

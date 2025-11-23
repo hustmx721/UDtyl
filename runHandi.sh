@@ -16,11 +16,11 @@ for dataset in "${datasets[@]}"; do
       gpu_id=${gpus[$(( ( ${#dataset} + ${#model} + ${#handi} ) % ${#gpus[@]} ))]}
 
       # 启动后台任务：注意 hand_method 参数
-      python -u main_EM.py \
-        --dataset "$dataset" \
-        --gpuid "$gpu_id" \
-        --model "$model" \
-        --handi_method "$handi" &
+      python -u main_Handi.py \
+        --dataset="$dataset" \
+        --gpuid="$gpu_id" \
+        --model="$model" \
+        --handi_method="$handi" &
 
       # 记录 PID
       jobs+=($!)
