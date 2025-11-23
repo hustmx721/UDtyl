@@ -36,14 +36,27 @@ class RandTemplate:
         return self.templates[user_id]
 
     def apply(self, x: torch.Tensor, user_ids: torch.Tensor) -> torch.Tensor:
-        """Add user-specific noise to batched input."""
+        """Add user-specific noise to batched input.
 
-        B, _, C, T = x.shape
-        assert C == self.C and T == self.T
-        template_batch = torch.stack(
-            [self.get(int(uid)) for uid in user_ids.tolist()], dim=0
-        ).to(x.device)
-        return x + template_batch
+        Supports both ``[B, C, T]`` and ``[B, 1, C, T]`` layouts to align with
+        the handcrafted UD pipeline in ``main_handi.py``.
+        """
+
+        if x.dim() == 3:  # [B, C, T]
+            B, C, T = x.shape
+            template_batch = torch.stack(
+                [self.get(int(uid)) for uid in user_ids.tolist()], dim=0
+            ).to(x.device)
+            return x + template_batch
+
+        if x.dim() == 4:  # [B, 1, C, T]
+            B, _, C, T = x.shape
+            template_batch = torch.stack(
+                [self.get(int(uid)) for uid in user_ids.tolist()], dim=0
+            ).to(x.device)
+            return x + template_batch.unsqueeze(1)
+
+        raise ValueError(f"Unexpected tensor shape {tuple(x.shape)} in RandTemplate.apply")
 
 
 def _make_user_code_wave(
@@ -108,12 +121,21 @@ class SNTemplate:
         return self.templates[user_id]
 
     def apply(self, x: torch.Tensor, user_ids: torch.Tensor) -> torch.Tensor:
-        B, _, C, T = x.shape
-        assert C == self.C and T == self.T
-        template_batch = torch.stack(
-            [self.get(int(uid)) for uid in user_ids.tolist()], dim=0
-        ).to(x.device)
-        return x + template_batch
+        if x.dim() == 3:  # [B, C, T]
+            B, C, T = x.shape
+            template_batch = torch.stack(
+                [self.get(int(uid)) for uid in user_ids.tolist()], dim=0
+            ).to(x.device)
+            return x + template_batch
+
+        if x.dim() == 4:  # [B, 1, C, T]
+            B, _, C, T = x.shape
+            template_batch = torch.stack(
+                [self.get(int(uid)) for uid in user_ids.tolist()], dim=0
+            ).to(x.device)
+            return x + template_batch.unsqueeze(1)
+
+        raise ValueError(f"Unexpected tensor shape {tuple(x.shape)} in SNTemplate.apply")
 
 
 class STFTRandTemplate:
@@ -162,7 +184,7 @@ class STFTRandTemplate:
 
     def apply(self, x: torch.Tensor, user_ids: torch.Tensor) -> torch.Tensor:
         assert x.dim() == 3, "x should be [B, C, T]"
-        B, _, C, T = x.shape
+        B, C, T = x.shape
         assert C == self.C, f"Expected C={self.C}, got {C}"
 
         device = x.device
