@@ -189,7 +189,7 @@ def run_classification(
             best_epoch = epoch
             torch.save(
                 model.state_dict(),
-                os.path.join(savepath, f"{prefix}_{args.model}_{args.seed}.pth"),
+                os.path.join(savepath, f"Handi_{prefix}_{args.handi_method}_{args.model}_{args.seed}.pth"),
             )
 
         val_acc_all.append(val_acc)
@@ -261,7 +261,7 @@ def save_results_csv(results: np.ndarray, args, prefix: str, seeds: List[int]):
     csv_path = args.csv_root / f"{args.dataset}"
     if not os.path.exists(csv_path):
         os.makedirs(csv_path)
-    df.to_csv(csv_path / f"handi_{prefix}_{args.model}.csv")
+    df.to_csv(csv_path / f"Handi_{prefix}_{args.handi_method}_{args.model}.csv")
 
 
 def run_experiment(args, device: torch.device, is_task: bool):
@@ -320,7 +320,7 @@ def main():
     args = set_args(args)
     device = torch.device("cuda:" + str(args.gpuid) if torch.cuda.is_available() else "cpu")
 
-    log_path = args.log_root / f"handi_{args.dataset}_{args.model}.log"
+    log_path = args.log_root / f"Handi_{args.handi_method}_{args.dataset}_{args.model}.log"
     sys.stdout = Logger(log_path)
 
     base_seed = args.seed
