@@ -1,7 +1,7 @@
 """
 Module: Data loading utilities
-Author: hust-marx2 
-Date: 2023/9/22 
+Author: hust-marx2
+Date: 2023/9/22
 Description: Provides Dataset class and DataLoader creation function with robustness and flexibility.
 """
 
@@ -11,6 +11,7 @@ import numpy as np
 import os
 from torch.utils.data import Dataset, DataLoader
 
+
 # 随机种子初始化,保证相同的种子实验可重复性
 def set_seed(myseed=23721):
     """Sets random seeds for reproducibility."""
@@ -18,12 +19,13 @@ def set_seed(myseed=23721):
     random.seed(myseed)
     torch.manual_seed(myseed)
     torch.cuda.manual_seed(myseed)
-    torch.cuda.manual_seed_all(myseed) # For multi-GPU
+    torch.cuda.manual_seed_all(myseed)  # For multi-GPU
     np.random.seed(myseed)
-    os.environ["PYTHONHASHSEED"] = str(myseed) # Note: typo corrected from "PYTHONSEED"
-    torch.backends.cudnn.enabled = False # Ensures deterministic algorithms (slower)
+    os.environ["PYTHONHASHSEED"] = str(myseed)  # Note: typo corrected from "PYTHONSEED"
+    torch.backends.cudnn.enabled = False  # Ensures deterministic algorithms (slower)
     torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False # Disables benchmarking for deterministic behavior
+    torch.backends.cudnn.benchmark = False  # Disables benchmarking for deterministic behavior
+
 
 class MyDataset(Dataset):
     """
@@ -40,7 +42,9 @@ class MyDataset(Dataset):
             include_index (bool): Whether to return the sample index for each item.
         """
         if data.shape[0] != label.shape[0]:
-            raise ValueError(f"Data and label must have the same length. Got {data.shape[0]} and {label.shape[0]}.")
+            raise ValueError(
+                f"Data and label must have the same length. Got {data.shape[0]} and {label.shape[0]}."
+            )
         self.data = data
         self.label = label
         self.include_index = include_index
@@ -67,7 +71,17 @@ class MyDataset(Dataset):
         return data, label
 
 
-def ToDataLoader(data, label, mode, batch_size=32, shuffle=None, num_workers=0, pin_memory=True, drop_last=None, include_index: bool = False):
+def ToDataLoader(
+    data,
+    label,
+    mode,
+    batch_size=32,
+    shuffle=None,
+    num_workers=0,
+    pin_memory=True,
+    drop_last=None,
+    include_index: bool = False,
+):
     """
     Creates a PyTorch DataLoader for the given data and labels.
 
@@ -88,9 +102,9 @@ def ToDataLoader(data, label, mode, batch_size=32, shuffle=None, num_workers=0, 
         ValueError: If the mode is not 'train' or 'test'.
     """
     if shuffle is None:
-        shuffle = (mode == "train")
+        shuffle = mode == "train"
     if drop_last is None:
-        drop_last = (mode == "train") # Usually True for training, False for testing
+        drop_last = mode == "train"  # Usually True for training, False for testing
 
     if mode not in ["train", "test"]:
         raise ValueError(f"Mode must be 'train' or 'test'. Got '{mode}'.")
@@ -103,7 +117,7 @@ def ToDataLoader(data, label, mode, batch_size=32, shuffle=None, num_workers=0, 
         shuffle=shuffle,
         num_workers=num_workers,
         pin_memory=pin_memory,
-        drop_last=drop_last
+        drop_last=drop_last,
     )
     return dataloader
 
