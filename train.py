@@ -18,7 +18,6 @@ def train_one_epoch(model, dataloader, device, optimizer, clf_loss_func):
         b_x, b_y = b_x.to(device), b_y.to(device)
 
         output = model(b_x)
-        pred_y = torch.argmax(output, dim=1)
 
         clf_loss = clf_loss_func(output, b_y.long())
         loss = clf_loss
@@ -30,18 +29,14 @@ def train_one_epoch(model, dataloader, device, optimizer, clf_loss_func):
         total_loss += loss.item() * b_x.size(0)
         total_samples += b_x.size(0)
 
-        all_logits.append(output.detach().cpu())
-        all_labels.append(b_y.cpu())
+        all_logits.append(output.detach())
+        all_labels.append(b_y.detach())
 
     avg_loss = total_loss / total_samples
 
-    all_logits_cat = torch.cat(all_logits, dim=0)
+    all_logits_cat = torch.cat(all_logits, dim=0).to(torch.float32)
     all_labels_cat = torch.cat(all_labels, dim=0)
 
-    y_true = all_labels_cat.numpy()
-    y_logits = all_logits_cat.numpy()
-    y_pred = all_logits_cat.argmax(axis=1).numpy()
+    accuracy, f1, bca, eer = calculate_metrics(all_labels_cat, all_logits_cat)
 
-    accuracy, f1, bca, eer = calculate_metrics(y_true, y_pred, y_logits)
-
-    return avg_loss, accuracy, f1, bca, eer
+    return avg_loss, accuracy.item(), f1.item(), bca.item(), eer.item()
