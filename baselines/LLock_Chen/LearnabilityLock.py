@@ -73,6 +73,7 @@ class LinearLock(Lock):
         super(LinearLock, self).__init__(epsilon, lock_params, device)
         self.n_class = self.lock_params['n_class']
         self.n_channel = self.lock_params['n_channel']
+        self.input_shape = self.lock_params.get('input_shape')
         self.setup()  # initialize W and b
     
     
@@ -82,16 +83,25 @@ class LinearLock(Lock):
 
     def setup(self, W=None, B=None):
         if self.initialized: print("Overwriting the weights...")
-        img_shape = self.lock_params['in_shape']
-        if W is not None:
-            self.W = torch.tensor(W).to(self.device)
+        img_shape = self.lock_params.get('in_shape')
+        input_shape = self.input_shape
+
+        if input_shape is not None:
+            if isinstance(input_shape, int):
+                input_shape = (input_shape,)
+            weight_shape = (self.n_class, self.n_channel, *input_shape)
         else:
-            self.W = torch.ones(self.n_class, self.n_channel , img_shape, img_shape).to(self.device)
+            weight_shape = (self.n_class, self.n_channel, img_shape, img_shape)
+
+        if W is not None:
+            self.W = torch.tensor(W, device=self.device)
+        else:
+            self.W = torch.ones(weight_shape, device=self.device)
             self.W = Variable(self.W, requires_grad=True)
         if B is not None:
-            self.B = torch.tensor(B).to(self.device)
+            self.B = torch.tensor(B, device=self.device)
         else:
-            self.B = torch.zeros(self.n_class, self.n_channel , img_shape, img_shape).to(self.device)
+            self.B = torch.zeros(weight_shape, device=self.device)
             self.B = Variable(self.B, requires_grad=True)
         self.initialized = True
         
@@ -214,13 +224,13 @@ class LinearLock(Lock):
         return result
     
     def lock(self, X, y):
-        result = torch.zeros(*X.shape)
+        result = torch.zeros_like(X, device=self.device)
         for i in range(X.shape[0]):
             result[i] = self.transform_sample(X[i], y[i])
         return result
 
     def unlock(self, X, y):
-        result = torch.zeros(*X.shape)
+        result = torch.zeros_like(X, device=self.device)
         for i in range(X.shape[0]):
             result[i] = self.inv_transform_sample(X[i], y[i])
         return result
@@ -281,8 +291,8 @@ class iResLock(Lock):
         img_shape = self.lock_params['in_shape']
         self.transforms = list()
         for i in range(self.n_class):
-            net = iResNet.Conv_iResNet( mid_planes=self.mid_planes, in_planes=self.n_channel, in_shape = img_shape, num_classes=self.n_class, 
-                                                          num_layers=1, epsilon=self.epsilon ).to(device)
+            net = iResNet.Conv_iResNet( mid_planes=self.mid_planes, in_planes=self.n_channel, in_shape = img_shape, num_classes=self.n_class,
+                                                          num_layers=1, epsilon=self.epsilon ).to(self.device)
             if weights is not None: net.load_state_dict(weights[i])
             self.transforms.append(net)
         
@@ -414,13 +424,13 @@ class iResLock(Lock):
         return torch.squeeze(result)
     
     def lock(self, X, y):
-        result = torch.zeros(*X.shape)
+        result = torch.zeros_like(X, device=self.device)
         for i in range(X.shape[0]):
             result[i] = self.transform_sample(X[i], y[i])
         return result
 
     def unlock(self, X, y):
-        result = torch.zeros(*X.shape)
+        result = torch.zeros_like(X, device=self.device)
         for i in range(X.shape[0]):
             result[i] = self.inv_transform_sample(X[i], y[i])
         return result
