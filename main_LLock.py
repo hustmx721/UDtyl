@@ -142,83 +142,97 @@ def save_results_csv(results: np.ndarray, args, prefix: str, seeds: List[int]):
 
 def main():
     args = init_args()
-    args = set_args(args)
-    device = torch.device(
-        "cuda:" + str(args.gpuid) if torch.cuda.is_available() else "cpu"
-    )
-
     seeds = list(range(args.seed, args.seed + args.repeats))
-    results = np.zeros((len(seeds), 4))
 
-    log_path = args.log_root / f"{args.dataset}_LLock_{args.model}.log"
-    sys.stdout = Logger(log_path)
-
-    for idx, seed in enumerate(seeds):
-        args.seed = seed
-        start_time = time.time()
-        print("=" * 30)
-        print(f"dataset: {args.dataset}")
-        print(f"model  : {args.model}")
-        print(f"seed   : {args.seed}")
-        print(f"gpu    : {args.gpuid}")
-        print(f"is_task: {args.is_task}")
-        print(f"lock   : {args.lock_type}")
-
-        set_seed(args.seed)
-        trainloader, valloader, testloader = load_data(args)
-
-        print("=====================data are prepared===============")
-        print(f"累计用时{time.time() - start_time:.4f}s!")
-
-        lock_params = build_lock_params(trainloader, args)
-        print(f"锁参数: {lock_params}")
-
-        model, optimizer, device = load_all(args)
-        torch.cuda.empty_cache()
-        if device.type == "cuda":
-            torch.cuda.set_device(device)
-
-        lock = create_lock(args, lock_params, device)
-        train_lock_and_model(trainloader, lock, model, args, device)
-        print("=====================LLock training done===============")
-        print(f"累计用时{time.time() - start_time:.4f}s!")
-
-        val_loss, val_acc, val_f1, val_bca, val_eer = evaluate_with_lock(
-            model, lock, valloader, device
-        )
-        print(
-            f"验证集平均指标为  Acc:{val_acc * 100:.2f}%;  F1:{val_f1 * 100:.2f}%;  BCA:{val_bca * 100:.2f}%; EER:{val_eer * 100:.2f}%;"
+    def run_mode(is_task_flag: bool):
+        args.is_task = is_task_flag
+        refreshed_args = set_args(args)
+        mode_tag = "Task" if is_task_flag else "UID"
+        device = torch.device(
+            "cuda:" + str(refreshed_args.gpuid)
+            if torch.cuda.is_available()
+            else "cpu"
         )
 
-        test_loss, test_acc, test_f1, test_bca, test_eer = evaluate_with_lock(
-            model, lock, testloader, device
-        )
-        print(
-            f"测试集平均指标为  Acc:{test_acc * 100:.2f}%;  F1:{test_f1 * 100:.2f}%;  BCA:{test_bca * 100:.2f}%; EER:{test_eer * 100:.2f}%;"
-        )
-        print("=====================test are done===================")
+        results = np.zeros((len(seeds), 4))
 
-        model_path = args.model_root / f"{args.dataset}"
-        if not os.path.exists(model_path):
-            os.makedirs(model_path)
-        torch.save(
-            model.state_dict(),
-            os.path.join(model_path, f"LLock_{args.model}_{args.seed}.pth"),
-        )
-        lock.save(sname=f"LLock_{args.model}_{args.seed}", path=model_path)
+        log_path = refreshed_args.log_root / f"{refreshed_args.dataset}_LLock_{mode_tag}_{refreshed_args.model}.log"
+        sys.stdout = Logger(log_path)
 
-        results[idx] = [test_acc, test_f1, test_bca, test_eer]
-        summarize_results(results, seeds, idx, "LLock")
-        print(
-            f"训练集:验证集:测试集={len(trainloader.dataset)}:{len(valloader.dataset)}:{len(testloader.dataset)}"
-        )
-        gc.collect()
-        torch.cuda.empty_cache()
+        for idx, seed in enumerate(seeds):
+            refreshed_args.seed = seed
+            start_time = time.time()
+            print("=" * 30)
+            print(f"dataset: {refreshed_args.dataset}")
+            print(f"model  : {refreshed_args.model}")
+            print(f"seed   : {refreshed_args.seed}")
+            print(f"gpu    : {refreshed_args.gpuid}")
+            print(f"is_task: {refreshed_args.is_task}")
+            print(f"lock   : {refreshed_args.lock_type}")
 
-    print("-" * 50)
-    print(model)
+            set_seed(refreshed_args.seed)
+            trainloader, valloader, testloader = load_data(refreshed_args)
 
-    save_results_csv(results, args, "LLock", seeds)
+            print("=====================data are prepared===============")
+            print(f"累计用时{time.time() - start_time:.4f}s!")
+
+            lock_params = build_lock_params(trainloader, refreshed_args)
+            print(f"锁参数: {lock_params}")
+
+            model, optimizer, device = load_all(refreshed_args)
+            torch.cuda.empty_cache()
+            if device.type == "cuda":
+                torch.cuda.set_device(device)
+
+            lock = create_lock(refreshed_args, lock_params, device)
+            train_lock_and_model(trainloader, lock, model, refreshed_args, device)
+            print("=====================LLock training done===============")
+            print(f"累计用时{time.time() - start_time:.4f}s!")
+
+            val_loss, val_acc, val_f1, val_bca, val_eer = evaluate_with_lock(
+                model, lock, valloader, device
+            )
+            print(
+                f"验证集平均指标为  Acc:{val_acc * 100:.2f}%;  F1:{val_f1 * 100:.2f}%;  BCA:{val_bca * 100:.2f}%; EER:{val_eer * 100:.2f}%;"
+            )
+
+            test_loss, test_acc, test_f1, test_bca, test_eer = evaluate_with_lock(
+                model, lock, testloader, device
+            )
+            print(
+                f"测试集平均指标为  Acc:{test_acc * 100:.2f}%;  F1:{test_f1 * 100:.2f}%;  BCA:{test_bca * 100:.2f}%; EER:{test_eer * 100:.2f}%;"
+            )
+            print("=====================test are done===================")
+
+            model_path = refreshed_args.model_root / f"{refreshed_args.dataset}"
+            if not os.path.exists(model_path):
+                os.makedirs(model_path)
+            torch.save(
+                model.state_dict(),
+                os.path.join(
+                    model_path, f"LLock_{mode_tag}_{refreshed_args.model}_{refreshed_args.seed}.pth"
+                ),
+            )
+            lock.save(
+                sname=f"LLock_{mode_tag}_{refreshed_args.model}_{refreshed_args.seed}",
+                path=model_path,
+            )
+
+            results[idx] = [test_acc, test_f1, test_bca, test_eer]
+            summarize_results(results, seeds, idx, "LLock")
+            print(
+                f"训练集:验证集:测试集={len(trainloader.dataset)}:{len(valloader.dataset)}:{len(testloader.dataset)}"
+            )
+            gc.collect()
+            torch.cuda.empty_cache()
+
+        print("-" * 50)
+        print(model)
+
+        save_results_csv(results, refreshed_args, f"LLock_{mode_tag}", seeds)
+
+    for is_task_flag in (True, False):
+        run_mode(is_task_flag)
 
 
 if __name__ == "__main__":
