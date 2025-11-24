@@ -4,12 +4,17 @@ datasets=("Rest" "Transient" "Steady" "Motor")
 models=("EEGNet" "DeepConvNet" "ShallowConvNet" "1D_LSTM" "BrainprintNet" "MSNet")
 gpus=(0 1 2 3 4 5 6)
 
-max_jobs=24
+max_jobs=12
 jobs=()
+job_idx=0
 
 for dataset in "${datasets[@]}"; do
   for model in "${models[@]}"; do
-    gpu_id=${gpus[$(( ( ${#dataset} + ${#model} ) % ${#gpus[@]} ))]}
+    # gpu_id=${gpus[$(( ( ${#dataset} + ${#model} ) % ${#gpus[@]} ))]}
+    gpu_id=${gpus[$(( job_idx % ${#gpus[@]} ))]}
+    job_idx=$((job_idx + 1))
+
+    echo "Launch: dataset=${dataset}, model=${model}, hand_method=${handi}, gpu=${gpu_id}"
     
     # Start job in background
     python -u main_UID.py --dataset="$dataset" --gpuid="$gpu_id" --model="$model" &

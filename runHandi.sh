@@ -9,11 +9,16 @@ handi_alpha=0.05
 gpus=(0 1 2 3 4 5 6)
 max_jobs=12
 jobs=()
+job_idx=0                # 用来轮询分配 GPU
 
 for dataset in "${datasets[@]}"; do
   for model in "${models[@]}"; do
     for handi in "${handis[@]}"; do
-      gpu_id=${gpus[$(( ( ${#dataset} + ${#model} + ${#handi} ) % ${#gpus[@]} ))]}
+      # gpu_id=${gpus[$(( ( ${#dataset} + ${#model} + ${#handi} ) % ${#gpus[@]} ))]}
+      gpu_id=${gpus[$(( job_idx % ${#gpus[@]} ))]}
+      job_idx=$((job_idx + 1))
+
+      echo "Launch: dataset=${dataset}, model=${model}, hand_method=${handi}, gpu=${gpu_id}"
 
       # Task and UID classification with handcrafted UD templates
       python -u main_Handi.py \
