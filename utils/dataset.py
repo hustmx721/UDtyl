@@ -71,6 +71,33 @@ class MyDataset(Dataset):
         return data, label
 
 
+class GPUReadyDataset(Dataset):
+    """
+    Dataset variant that returns pre-converted tensors (optionally on GPU) to
+    minimize host-to-device copies for latency-sensitive training such as
+    LLock.
+    """
+
+    def __init__(self, data, label, include_index: bool = False):
+        if data.shape[0] != label.shape[0]:
+            raise ValueError(
+                f"Data and label must have the same length. Got {data.shape[0]} and {label.shape[0]}."
+            )
+        self.data = data
+        self.label = label
+        self.include_index = include_index
+
+    def __len__(self):
+        return self.data.shape[0]
+
+    def __getitem__(self, idx):
+        data = self.data[idx]
+        label = self.label[idx]
+        if self.include_index:
+            return data, label, idx
+        return data, label
+
+
 def ToDataLoader(
     data,
     label,
@@ -110,6 +137,42 @@ def ToDataLoader(
         raise ValueError(f"Mode must be 'train' or 'test'. Got '{mode}'.")
 
     dataset = MyDataset(data, label, include_index=include_index)
+
+    dataloader = DataLoader(
+        dataset=dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        drop_last=drop_last,
+    )
+    return dataloader
+
+
+def ToDataLoaderLLock(
+    data,
+    label,
+    mode,
+    batch_size=32,
+    shuffle=None,
+    num_workers=0,
+    pin_memory=False,
+    drop_last=None,
+    include_index: bool = False,
+):
+    """
+    DataLoader variant optimized for LLock GPU-first training. It assumes the
+    provided data/labels are already torch.Tensors (ideally on GPU or pinned
+    memory) and avoids additional conversions/copies.
+    """
+    if shuffle is None:
+        shuffle = mode == "train"
+    if drop_last is None:
+        drop_last = mode == "train"
+    if mode not in ["train", "test"]:
+        raise ValueError(f"Mode must be 'train' or 'test'. Got '{mode}'.")
+
+    dataset = GPUReadyDataset(data, label, include_index=include_index)
 
     dataloader = DataLoader(
         dataset=dataset,
