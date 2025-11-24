@@ -9,13 +9,46 @@ import torch
 import random
 import numpy as np
 import os
+from typing import Optional
 from torch.utils.data import Dataset, DataLoader
 
 
 # 随机种子初始化,保证相同的种子实验可重复性
-def set_seed(myseed=23721):
-    """Sets random seeds for reproducibility."""
-    # torch.set_num_threads(1) # Consider removing for performance if strict determinism isn't required
+def _apply_thread_limits(torch_threads: Optional[int], torch_interop_threads: Optional[int]):
+    """Best-effort application of PyTorch thread limits."""
+
+    def _set_threads(value: Optional[int], setter, label: str):
+        if value is None:
+            return
+        if isinstance(value, int) and value > 0:
+            try:
+                setter(value)
+            except Exception as exc:  # noqa: BLE001 - want to catch native errors too
+                # Avoid hard crashes from unsupported backends; continue without limits.
+                print(f"[set_seed] Skipping {label} due to error: {exc}")
+        else:
+            print(f"[set_seed] Ignoring invalid {label}={value}; expected a positive integer")
+
+    _set_threads(torch_threads, torch.set_num_threads, "torch_threads")
+    _set_threads(torch_interop_threads, torch.set_num_interop_threads, "torch_interop_threads")
+
+
+def set_seed(
+    myseed: int = 23721,
+    torch_threads: Optional[int] = 1,
+    torch_interop_threads: Optional[int] = 1,
+):
+    """
+    Sets random seeds for reproducibility and optionally constrains PyTorch CPU threading.
+
+    Args:
+        myseed (int): Seed value to apply across libraries.
+        torch_threads (int | None): Number of intra-op threads for PyTorch. Set to ``None`` to skip.
+        torch_interop_threads (int | None): Number of inter-op threads for PyTorch. Set to ``None`` to skip.
+    """
+
+    _apply_thread_limits(torch_threads, torch_interop_threads)
+
     random.seed(myseed)
     torch.manual_seed(myseed)
     torch.cuda.manual_seed(myseed)
