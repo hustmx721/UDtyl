@@ -30,8 +30,18 @@ def init_args():
     parser.add_argument("--model", type=str, default="EEGNet")
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--is_task", type=bool, default=True)
-    parser.add_argument("--torch_threads", type=int, default=4,
-                        help="Number of threads to use for torch operations")
+    parser.add_argument(
+        "--torch_threads",
+        type=int,
+        default=1,
+        help="Number of intra-op threads to use for torch operations (set low when running parallel jobs)",
+    )
+    parser.add_argument(
+        "--torch_interop_threads",
+        type=int,
+        default=1,
+        help="Number of inter-op threads to use for torch operations (set low when running parallel jobs)",
+    )
     parser.add_argument(
         "--handi_method",
         type=str,

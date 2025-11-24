@@ -6,6 +6,10 @@ models=("EEGNet" "DeepConvNet" "ShallowConvNet")
 handis=("sn" "stft" "rand")
 handi_alpha=0.05
 
+# Use small CPU thread counts to reduce contention when running many jobs in parallel.
+torch_threads=1
+torch_interop_threads=1
+
 gpus=(0 1 2 3 4 5 6)
 max_jobs=12
 jobs=()
@@ -26,7 +30,9 @@ for dataset in "${datasets[@]}"; do
         --gpuid="$gpu_id" \
         --model="$model" \
         --handi_method="$handi" \
-        --handi_alpha="$handi_alpha" &
+        --handi_alpha="$handi_alpha" \
+        --torch_threads="$torch_threads" \
+        --torch_interop_threads="$torch_interop_threads" &
       jobs+=($!) # Store the PID
 
       # Limit the number of running jobs
