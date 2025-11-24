@@ -303,7 +303,11 @@ def run_experiment(args, device: torch.device, is_task: bool):
         print(f"is_task: {args.is_task}")
         print(f"handi_method: {args.handi_method}, handi_alpha: {args.handi_alpha}")
 
-        set_seed(args.seed)
+        set_seed(
+            args.seed,
+            torch_threads=args.torch_threads,
+            torch_interop_threads=args.torch_interop_threads,
+        )
         trainloader, valloader, testloader = load_data(args, include_index=True)
 
         print("=====================data are prepared===============")
