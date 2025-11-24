@@ -16,7 +16,7 @@ for dataset in "${datasets[@]}"; do
       gpu_id=${gpus[$(( ( ${#dataset} + ${#model} + ${#handi} ) % ${#gpus[@]} ))]}
 
       # Task and UID classification with handcrafted UD templates
-      python -u main_handi.py \
+      python -u main_Handi.py \
         --dataset="$dataset" \
         --gpuid="$gpu_id" \
         --model="$model" \

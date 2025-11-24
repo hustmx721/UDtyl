@@ -3,7 +3,7 @@ import sys
 import time
 import gc
 import warnings
-from typing import List, Tuple
+from typing import Callable, List, Tuple
 
 import numpy as np
 import torch
@@ -19,12 +19,29 @@ from utils.Logging import Logger
 warnings.filterwarnings("ignore")
 
 
+def _as_bct(x: torch.Tensor) -> Tuple[torch.Tensor, Callable[[torch.Tensor], torch.Tensor]]:
+    """Normalize inputs to [B, C, T] and return a restore function."""
+
+    if x.dim() == 3:
+        return x, lambda out: out
+
+    if x.dim() == 4 and x.size(1) == 1:
+        x_bct = x.squeeze(1)
+        return x_bct, lambda out: out.unsqueeze(1)
+
+    raise ValueError(
+        f"Unexpected tensor shape {tuple(x.shape)}, expected [B, C, T] or [B, 1, C, T]"
+    )
+
+
 def build_template(trainloader, args, device: torch.device):
     """Create a handcrafted UD template using the first batch statistics."""
     first_batch = next(iter(trainloader))
     sample = first_batch[0].to(device)
-    bath_size, _, channels, timesteps = sample.shape
-    channel_std = sample.std(dim=(0, 2, 3))
+
+    sample_bct, _ = _as_bct(sample)
+    _, channels, timesteps = sample_bct.shape
+    channel_std = sample_bct.std(dim=(0, 2))
 
     if args.handi_method == "rand":
         return RandTemplate(channels, timesteps, args.handi_alpha, channel_std, str(device))
@@ -36,7 +53,10 @@ def build_template(trainloader, args, device: torch.device):
 def apply_template(x: torch.Tensor, user_ids: torch.Tensor, template) -> torch.Tensor:
     if template is None:
         return x
-    return template.apply(x, user_ids)
+
+    x_bct, restore = _as_bct(x)
+    out = template.apply(x_bct, user_ids)
+    return restore(out)
 
 
 def train_one_epoch_with_template(
@@ -60,6 +80,7 @@ def train_one_epoch_with_template(
         else:
             b_x, b_y = batch
             user_ids = b_y
+
         b_x = apply_template(b_x.to(device), user_ids.to(device), template)
         b_y = b_y.to(device)
 
