@@ -193,6 +193,7 @@ def run_experiment(args, device: torch.device, is_task: bool):
             f"训练集:验证集:测试集={len(trainloader.dataset)}:{len(valloader.dataset)}:{len(testloader.dataset)}"
         )
         gc.collect()
+        torch.cuda.empty_cache()
 
     print(f"========== {prefix}分类完成 ==========")
     print(model)

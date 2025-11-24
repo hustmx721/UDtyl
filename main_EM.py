@@ -255,6 +255,7 @@ def run_mode(base_args, is_task: bool, results: np.ndarray, log_prefix: str, pre
         print(f"{row_labels[-2]:<10} {np.mean(results[:idx + 1, 0]):<10.4f} {np.mean(results[:idx + 1, 1]):<10.4f} {np.mean(results[:idx + 1, 2]):<10.4f} {np.mean(results[:idx + 1, 3]):<10.4f}")
         print(f"{row_labels[-1]:<10} {np.std(results[:idx + 1, 0]):<10.4f} {np.std(results[:idx + 1, 1]):<10.4f} {np.std(results[:idx + 1, 2]):<10.4f} {np.std(results[:idx + 1, 3]):<10.4f}")
         gc.collect()
+        torch.cuda.empty_cache()
 
     final_results = np.vstack([results, np.mean(results, axis=0), np.std(results, axis=0)])
     df = pd.DataFrame(final_results,
