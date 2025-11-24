@@ -152,11 +152,6 @@ def load_data(args: argparse.ArgumentParser, include_index: bool = False):
 
 
 def load_all(args: argparse.ArgumentParser):
-    torch.set_num_threads(max(1, args.torch_threads))
-    torch.set_num_interop_threads(max(1, args.torch_threads // 2))
-    os.environ["OMP_NUM_THREADS"] = str(args.torch_threads)
-    os.environ["MKL_NUM_THREADS"] = str(args.torch_threads)
-    os.environ["NUMEXPR_NUM_THREADS"] = str(args.torch_threads)
     device = torch.device("cuda:"+str(args.gpuid) if torch.cuda.is_available() else "cpu")
     model = LoadModel(model_name=args.model, Chans=args.channel, Samples=int(args.fs*args.timepoint), n_classes=args.nclass).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.initlr)

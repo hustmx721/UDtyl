@@ -11,6 +11,7 @@ from sklearn.model_selection import train_test_split
 import scipy.linalg as la
 from utils.dataset import ToDataLoader, set_seed
 from utils.preprocess import preprocessing
+import torch
 
 # CPU kernel limitation
 def LimitCpu():
@@ -23,9 +24,6 @@ def LimitCpu():
 
 global max_chunk_size 
 max_chunk_size = LimitCpu()
-os.environ["OPENBLAS_NUM_THREADS"] = "4"
-os.environ["MKL_NUM_THREADS"] = "4"
-os.environ["NUMEXPR_NUM_THREADS"] = "4"
 
 
 def Task(x, y, ratio=0.8, shuffle=True):
