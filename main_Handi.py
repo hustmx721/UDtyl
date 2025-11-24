@@ -94,17 +94,21 @@ def train_one_epoch_with_template(
         total_loss += clf_loss.item() * b_x.size(0)
         total_samples += b_x.size(0)
 
-        all_logits.append(output.detach())
-        all_labels.append(b_y.detach())
+        all_logits.append(output.detach().cpu())
+        all_labels.append(b_y.cpu())
 
     avg_loss = total_loss / max(total_samples, 1)
-    all_logits_cat = torch.cat(all_logits, dim=0).to(torch.float32)
+    all_logits_cat = torch.cat(all_logits, dim=0)
     all_labels_cat = torch.cat(all_labels, dim=0)
+
+    y_true = all_labels_cat.numpy()
+    y_logits = all_logits_cat.numpy()
+    y_pred = all_logits_cat.argmax(axis=1).numpy()
 
     from evaluate import calculate_metrics  # Local import to reuse existing metrics
 
-    accuracy, f1, bca, eer = calculate_metrics(all_labels_cat, all_logits_cat)
-    return avg_loss, accuracy.item(), f1.item(), bca.item(), eer.item()
+    accuracy, f1, bca, eer = calculate_metrics(y_true, y_pred, y_logits)
+    return avg_loss, accuracy, f1, bca, eer
 
 
 def evaluate_with_template(model, dataloader, device, template):
@@ -130,17 +134,21 @@ def evaluate_with_template(model, dataloader, device, template):
             loss = clf_loss_func(logits, y.long())
 
             total_loss += loss.item()
-            all_logits.append(logits.detach())
-            all_labels.append(y.detach())
+            all_logits.append(logits.cpu())
+            all_labels.append(y.cpu())
 
     avg_loss = total_loss / len(dataloader)
-    all_logits_cat = torch.cat(all_logits, dim=0).to(torch.float32)
+    all_logits_cat = torch.cat(all_logits, dim=0)
     all_labels_cat = torch.cat(all_labels, dim=0)
+
+    y_true = all_labels_cat.numpy()
+    y_logits = all_logits_cat.numpy()
+    y_pred = all_logits_cat.argmax(axis=1).numpy()
 
     from evaluate import calculate_metrics
 
-    accuracy, f1, bca, eer = calculate_metrics(all_labels_cat, all_logits_cat)
-    return avg_loss, accuracy.item(), f1.item(), bca.item(), eer.item()
+    accuracy, f1, bca, eer = calculate_metrics(y_true, y_pred, y_logits)
+    return avg_loss, accuracy, f1, bca, eer
 
 
 def run_classification(
