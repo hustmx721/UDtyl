@@ -153,6 +153,8 @@ def save_results_csv(results: np.ndarray, args, prefix: str, seeds: List[int]):
 
 def run_experiment(args, device: torch.device, is_task: bool):
     prefix = "Task" if is_task else "UID"
+    args.is_task = is_task
+    args = set_args(args)
     seeds = list(range(args.seed, args.seed + args.repeats))
     results = np.zeros((len(seeds), 4))
 
@@ -161,6 +163,7 @@ def run_experiment(args, device: torch.device, is_task: bool):
     for idx, seed in enumerate(seeds):
         args.seed = seed
         args.is_task = is_task
+        args = set_args(args)
         start_time = time.time()
         print("=" * 30)
         print(f"dataset: {args.dataset}")

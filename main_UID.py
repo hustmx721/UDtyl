@@ -104,6 +104,7 @@ def main():
     for idx, seed in enumerate(range(args.seed, args.seed + args.repeats)):
         args.seed = seed
         args.is_task = False
+        args = set_args(args)
         start_time = time.time()
         print("=" * 30)
         print(f"dataset: {args.dataset}")
