@@ -72,35 +72,40 @@ def train_one_epoch_with_noise(model, trainloader, delta, optimizer, device, eps
 
 def update_classwise_noise(model, trainloader, delta, eps, alpha, pgd_steps, device, clip_min=None, clip_max=None):
     model.eval()
+    perturb_sum = torch.zeros_like(delta)
+    counts = torch.zeros(delta.size(0), device=device, dtype=torch.long)
     for batch in trainloader:
         b_x, b_y = batch[:2]
         b_x = b_x.to(device)
         b_y = b_y.to(device).long()
 
-        for cls in b_y.unique():
-            cls_mask = b_y == cls
-            x_cls = b_x[cls_mask]
-            y_cls = b_y[cls_mask]
-            if x_cls.numel() == 0:
-                continue
+        # Prepare per-sample adversarial examples in parallel
+        x_adv = clamp_tensor((b_x + delta[b_y]).detach(), clip_min, clip_max)
 
-            x_adv = clamp_tensor((x_cls + delta[cls]).detach(), clip_min, clip_max)
+        for _ in range(pgd_steps):
             x_adv.requires_grad_(True)
-
-            for _ in range(pgd_steps):
-                logits = model(x_adv)
-                loss = F.cross_entropy(logits, y_cls)
-                grad = torch.autograd.grad(loss, x_adv)[0]
-
-                with torch.no_grad():
-                    x_adv = x_adv - alpha * grad.sign()
-                    perturb = torch.clamp(x_adv - x_cls, -eps, eps)
-                    x_adv = clamp_tensor(x_cls + perturb, clip_min, clip_max)
-                    x_adv.requires_grad_(True)
+            logits = model(x_adv)
+            loss = F.cross_entropy(logits, b_y)
+            grad = torch.autograd.grad(loss, x_adv, retain_graph=False, create_graph=False)[0]
 
             with torch.no_grad():
-                perturb = torch.clamp(x_adv - x_cls, -eps, eps)
-                delta[cls] = clamp_tensor(perturb.mean(dim=0), -eps, eps)
+                x_adv = x_adv - alpha * grad.sign()
+                perturb = torch.clamp(x_adv - b_x, -eps, eps)
+                x_adv = clamp_tensor(b_x + perturb, clip_min, clip_max)
+                x_adv = x_adv.detach()
+
+        with torch.no_grad():
+            perturb = torch.clamp(x_adv - b_x, -eps, eps)
+            perturb_sum.index_add_(0, b_y, perturb)
+            counts = counts + torch.bincount(b_y, minlength=delta.size(0))
+
+    with torch.no_grad():
+        counts_view = counts.view(-1, *([1] * (delta.dim() - 1)))
+        valid_classes = counts > 0
+        if valid_classes.any():
+            averaged = torch.zeros_like(delta)
+            averaged[valid_classes] = perturb_sum[valid_classes] / counts_view[valid_classes]
+            delta[valid_classes] = clamp_tensor(averaged[valid_classes], -eps, eps)
 
 
 def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args, device, mode_tag: str, pretrained_delta=None):
