@@ -107,7 +107,7 @@ def train_one_epoch_with_template(
 
     from evaluate import calculate_metrics  # Local import to reuse existing metrics
 
-    accuracy, f1, bca, eer = calculate_metrics(y_true, y_pred, y_logits)
+    accuracy, f1, bca, eer = calculate_metrics(y_true, y_logits)
     return avg_loss, accuracy, f1, bca, eer
 
 
@@ -147,7 +147,7 @@ def evaluate_with_template(model, dataloader, device, template):
 
     from evaluate import calculate_metrics
 
-    accuracy, f1, bca, eer = calculate_metrics(y_true, y_pred, y_logits)
+    accuracy, f1, bca, eer = calculate_metrics(y_true, y_logits)
     return avg_loss, accuracy, f1, bca, eer
 
 

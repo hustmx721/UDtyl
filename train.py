@@ -42,6 +42,6 @@ def train_one_epoch(model, dataloader, device, optimizer, clf_loss_func):
     y_logits = all_logits_cat.numpy()
     y_pred = all_logits_cat.argmax(axis=1).numpy()
 
-    accuracy, f1, bca, eer = calculate_metrics(y_true, y_pred, y_logits)
+    accuracy, f1, bca, eer = calculate_metrics(y_true, y_logits)
 
     return avg_loss, accuracy, f1, bca, eer
