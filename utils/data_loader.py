@@ -6,10 +6,11 @@ from functools import lru_cache
 import matplotlib.pyplot as plt
 import numpy as np
 import psutil
+import torch
 from einops import rearrange
 from sklearn.model_selection import train_test_split
 import scipy.linalg as la
-from utils.dataset import ToDataLoader, set_seed
+from utils.dataset import ToDataLoader, ToDataLoaderLLock, set_seed
 from utils.preprocess import preprocessing
 
 # CPU kernel limitation
@@ -26,6 +27,77 @@ max_chunk_size = LimitCpu()
 os.environ["OPENBLAS_NUM_THREADS"] = "4"
 os.environ["MKL_NUM_THREADS"] = "4"
 os.environ["NUMEXPR_NUM_THREADS"] = "4"
+
+
+def _resolve_device(target_device):
+    if target_device is None:
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if isinstance(target_device, torch.device):
+        return target_device
+    if isinstance(target_device, int):
+        return torch.device(f"cuda:{target_device}")
+    return torch.device(target_device)
+
+
+def _to_device_tensor(array, device, *, dtype=torch.float32, pin_memory=False, non_blocking=True):
+    tensor = torch.as_tensor(array, dtype=dtype)
+    if pin_memory and device.type == "cpu":
+        tensor = tensor.pin_memory()
+    return tensor.to(device, non_blocking=non_blocking)
+
+
+def _prepare_loaders(
+    tx,
+    vx,
+    test_x,
+    ts,
+    vs,
+    test_y,
+    batchsize,
+    include_index,
+    llock_gpu,
+    target_device,
+    pin_memory,
+    non_blocking,
+):
+    if llock_gpu:
+        device = _resolve_device(target_device)
+        pin_flag = pin_memory and device.type == "cpu"
+
+        def _convert_data(arr):
+            arr = np.expand_dims(arr, axis=1) if arr.ndim == 3 else arr
+            return _to_device_tensor(
+                arr,
+                device,
+                dtype=torch.float32,
+                pin_memory=pin_flag,
+                non_blocking=non_blocking,
+            )
+
+        data_tensors = [_convert_data(arr) for arr in [tx, vx, test_x]]
+        label_tensors = [
+            _to_device_tensor(lbl, device, dtype=torch.long, pin_memory=pin_flag, non_blocking=non_blocking)
+            for lbl in [ts, vs, test_y]
+        ]
+
+        loaders = [
+            ToDataLoaderLLock(
+                x,
+                y,
+                mode,
+                batch_size=batchsize,
+                include_index=include_index,
+                pin_memory=pin_flag,
+            )
+            for x, y, mode in zip(data_tensors, label_tensors, ["train", "test", "test"])
+        ]
+    else:
+        tx, vx, test_x = [np.expand_dims(x, axis=1) for x in [tx, vx, test_x]]
+        loaders = [
+            ToDataLoader(x, y, mode, batch_size=batchsize, include_index=include_index)
+            for x, y, mode in zip([tx, vx, test_x], [ts, vs, test_y], ["train", "test", "test"])
+        ]
+    return loaders
 
 
 def Task(x, y, ratio=0.8, shuffle=True):
@@ -108,7 +180,17 @@ def SubBandSplit(data: np.ndarray, freq_start: int = 4, freq_end: int = 40, band
 # MI:(54,200,62,4000) --> downsample: (54,200,62,1000)
 # SSVEP:(54,200,62,4000) --> downsample : (54,200,62,1000)
 # ERP:(54,4140,62,800) --> downsample : (54,200,62,200)
-def GetLoaderOpenBMI(seed, Task: str = "MI", batchsize: int = 64, is_task: bool = True, include_index: bool = False): # Task = "ERP", "MI", "SSVEP"
+def GetLoaderOpenBMI(
+    seed,
+    Task: str = "MI",
+    batchsize: int = 64,
+    is_task: bool = True,
+    include_index: bool = False,
+    llock_gpu: bool = False,
+    target_device=None,
+    pin_memory: bool = True,
+    non_blocking: bool = True,
+):  # Task = "ERP", "MI", "SSVEP"
     def load_data(file_path):
         with open(file_path, "rb") as f:
             return pickle.load(f)
@@ -152,12 +234,24 @@ def GetLoaderOpenBMI(seed, Task: str = "MI", batchsize: int = 64, is_task: bool 
     train_x, test_x = [process_data(x) for x in [train_x, test_x]]
     tx, vx, ts, vs = train_test_split(train_x, train_y, test_size=0.2, random_state=seed, stratify=train_y)
 
-    tx, vx, test_x = [np.expand_dims(x, axis=1) for x in [tx, vx, test_x]] # if EEGNet, DeepConvNet or ShallowConvNet
     print("-----数据预处理完成-----")
     print(f"是否任务分类: {is_task}, 类别数量: {len(np.unique(train_y))}")
     print(f"数据比例-----训练集:验证集:测试集 = {tx.shape}:{vx.shape}:{test_x.shape}")
-    [trainloader, validateloader, testloader] = [ToDataLoader(x, y, mode, batch_size=batchsize, include_index=include_index) for x, y, mode \
-                                                 in zip([tx, vx, test_x], [ts, vs, test_y], ["train", "test", "test"])]
+
+    trainloader, validateloader, testloader = _prepare_loaders(
+        tx,
+        vx,
+        test_x,
+        ts,
+        vs,
+        test_y,
+        batchsize,
+        include_index,
+        llock_gpu,
+        target_device,
+        pin_memory,
+        non_blocking,
+    )
     return trainloader, validateloader, testloader
 
 
@@ -180,7 +274,17 @@ SSVEP_SA (480, 65, 1000) (480,) -- 20 * 24
 ! 注意: 去除EasyCap后是64通道
 """
 # Task = "Rest"， "Transient", "Steady", "Motor"
-def GetLoaderM3CV(seed, Task: str = "Rest", batchsize: int = 64, is_task: bool = True, include_index: bool = False):
+def GetLoaderM3CV(
+    seed,
+    Task: str = "Rest",
+    batchsize: int = 64,
+    is_task: bool = True,
+    include_index: bool = False,
+    llock_gpu: bool = False,
+    target_device=None,
+    pin_memory: bool = True,
+    non_blocking: bool = True,
+):
     def load_data(file_path):
         with open(file_path, "rb") as f:
             return pickle.load(f)
@@ -224,23 +328,65 @@ def GetLoaderM3CV(seed, Task: str = "Rest", batchsize: int = 64, is_task: bool =
     tx, vx, ts, vs = train_test_split(train_x, train_y, test_size=0.2, random_state=seed, stratify=train_y)
 
     # [tx, vx, test_x] = [SubBandSplit(x,8,32,2) for x in [tx, vx, test_x]]
-    tx, vx, test_x = [np.expand_dims(x, axis=1) for x in [tx, vx, test_x]] # if EEGNet, DeepConvNet or ShallowConvNet
     print("-----数据预处理完成-----")
     print(f"是否任务分类: {is_task}, 类别数量: {len(np.unique(train_y))}")
     print(f"数据比例-----训练集:验证集:测试集 = {tx.shape}:{vx.shape}:{test_x.shape}")
-    [trainloader, validateloader, testloader] = [ToDataLoader(x, y, mode, batch_size=batchsize, include_index=include_index) for x, y, mode \
-                                                 in zip([tx, vx, test_x], [ts, vs, test_y], ["train","test","test"])]
+
+    trainloader, validateloader, testloader = _prepare_loaders(
+        tx,
+        vx,
+        test_x,
+        ts,
+        vs,
+        test_y,
+        batchsize,
+        include_index,
+        llock_gpu,
+        target_device,
+        pin_memory,
+        non_blocking,
+    )
     del data_train, data_test, train_x, train_y, test_x, test_y, tx, vx, ts, vs
     gc.collect()
     return trainloader, validateloader, testloader
 
-def Load_Dataloader(seed, Task, batchsize, is_task=True, include_index: bool = False):
+def Load_Dataloader(
+    seed,
+    Task,
+    batchsize,
+    is_task=True,
+    include_index: bool = False,
+    llock_gpu: bool = False,
+    target_device=None,
+    pin_memory: bool = True,
+    non_blocking: bool = True,
+):
     OpenBMI = ["MI", "SSVEP", "ERP"]
     M3CV = ["Rest", "Transient", "Steady", "P300", "Motor", "SSVEP_SA"]
     set_seed(seed)
-    
+
     if Task in OpenBMI:
-        trainloader, valloader, testloader = GetLoaderOpenBMI(seed, Task=Task, batchsize=batchsize, is_task=is_task, include_index=include_index)
+        trainloader, valloader, testloader = GetLoaderOpenBMI(
+            seed,
+            Task=Task,
+            batchsize=batchsize,
+            is_task=is_task,
+            include_index=include_index,
+            llock_gpu=llock_gpu,
+            target_device=target_device,
+            pin_memory=pin_memory,
+            non_blocking=non_blocking,
+        )
     elif Task in M3CV:
-        trainloader, valloader, testloader = GetLoaderM3CV(seed, Task=Task, batchsize=batchsize, is_task=is_task, include_index=include_index)
+        trainloader, valloader, testloader = GetLoaderM3CV(
+            seed,
+            Task=Task,
+            batchsize=batchsize,
+            is_task=is_task,
+            include_index=include_index,
+            llock_gpu=llock_gpu,
+            target_device=target_device,
+            pin_memory=pin_memory,
+            non_blocking=non_blocking,
+        )
     return trainloader, valloader, testloader
