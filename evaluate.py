@@ -1,7 +1,8 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from sklearn.metrics import balanced_accuracy_score, f1_score, roc_curve
+import torch.nn.functional as F
+from sklearn.metrics import roc_curve
 from sklearn.preprocessing import label_binarize
 
 
@@ -23,24 +24,71 @@ def calculate_eer(y_true, y_pred):
     return avg_eer, class_eer
 
 
-def calculate_metrics(y_true, y_pred, y_logits):
-    accuracy = np.mean(y_true == y_pred)
-    f1 = f1_score(y_true, y_pred, average="weighted", zero_division=0)
-    bca = balanced_accuracy_score(y_true, y_pred)
+def calculate_metrics(labels: torch.Tensor, logits: torch.Tensor):
+    if labels.numel() == 0:
+        return float("nan"), float("nan"), float("nan"), float("nan")
 
-    unique_labels = np.unique(y_true)
-    y_true = label_binarize(y_true, classes=unique_labels)
-    if len(unique_labels) == 2 and y_true.ndim == 1:
-        y_true = np.column_stack([1 - y_true, y_true])
-    y_pred_probs = torch.softmax(torch.from_numpy(y_logits), dim=1).numpy()
+    preds = logits.argmax(dim=1)
 
-    try:
-        eer, _ = calculate_eer(y_true, y_pred_probs)
-    except Exception as e:
-        print(f"Warning: Could not calculate EER due to: {e}. Setting EER to NaN.")
+    correct = (preds == labels).sum().float()
+    accuracy = correct / labels.numel()
+
+    num_classes = logits.shape[1]
+    labels_one_hot = F.one_hot(labels, num_classes=num_classes).to(logits.dtype)
+    preds_one_hot = F.one_hot(preds, num_classes=num_classes).to(logits.dtype)
+
+    true_positives = (labels_one_hot * preds_one_hot).sum(dim=0)
+    support = labels_one_hot.sum(dim=0)
+    predicted_support = preds_one_hot.sum(dim=0)
+    false_positives = predicted_support - true_positives
+    false_negatives = support - true_positives
+
+    precision_denom = true_positives + false_positives
+    recall_denom = true_positives + false_negatives
+
+    precision = torch.where(
+        precision_denom > 0, true_positives / precision_denom, torch.zeros_like(true_positives)
+    )
+    recall = torch.where(
+        recall_denom > 0, true_positives / recall_denom, torch.zeros_like(true_positives)
+    )
+
+    f1_denom = precision + recall
+    f1_per_class = torch.where(
+        f1_denom > 0, 2 * precision * recall / f1_denom, torch.zeros_like(f1_denom)
+    )
+
+    total_support = support.sum()
+    if total_support.item() > 0:
+        f1_weighted = (f1_per_class * support).sum() / total_support
+    else:
+        f1_weighted = torch.tensor(float("nan"), device=logits.device)
+
+    valid_recalls = recall[support > 0]
+    if valid_recalls.numel() > 0:
+        bca = valid_recalls.mean()
+    else:
+        bca = torch.tensor(float("nan"), device=logits.device)
+
+    probabilities = torch.softmax(logits, dim=1)
+    labels_cpu = labels.detach().cpu().numpy()
+    probabilities_cpu = probabilities.detach().cpu().numpy()
+
+    classes = np.arange(logits.shape[1])
+    y_true_binarized = label_binarize(labels_cpu, classes=classes)
+    if y_true_binarized.ndim == 1:
+        y_true_binarized = np.column_stack([1 - y_true_binarized, y_true_binarized])
+
+    if y_true_binarized.shape[1] < 2 or probabilities_cpu.shape[1] < 2:
         eer = float("nan")
+    else:
+        try:
+            eer, _ = calculate_eer(y_true_binarized, probabilities_cpu)
+        except Exception as e:
+            print(f"Warning: Could not calculate EER due to: {e}. Setting EER to NaN.")
+            eer = float("nan")
 
-    return accuracy, f1, bca, eer
+    return accuracy.item(), f1_weighted.item(), bca.item(), eer
 
 
 def evaluate(model, dataloader, args=None, device=None):
@@ -72,22 +120,19 @@ def evaluate(model, dataloader, args=None, device=None):
             else:
                 x, y = batch
             x, y = x.to(device), y.to(device)
+            y = y.long()
             logits = model(x)
-            loss = clf_loss_func(logits, y.long())
+            loss = clf_loss_func(logits, y)
 
             total_loss += loss.item()
-            all_logits.append(logits.cpu())
-            all_labels.append(y.cpu())
+            all_logits.append(logits.detach())
+            all_labels.append(y.detach())
 
     avg_loss = total_loss / len(dataloader)
 
     all_logits_cat = torch.cat(all_logits, dim=0)
     all_labels_cat = torch.cat(all_labels, dim=0)
 
-    y_true = all_labels_cat.numpy()
-    y_logits = all_logits_cat.numpy()
-    y_pred = all_logits_cat.argmax(axis=1).numpy()
-
-    accuracy, f1, bca, eer = calculate_metrics(y_true, y_pred, y_logits)
+    accuracy, f1, bca, eer = calculate_metrics(all_labels_cat, all_logits_cat)
 
     return avg_loss, accuracy, f1, bca, eer
