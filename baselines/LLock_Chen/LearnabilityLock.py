@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from abc import ABC, abstractmethod
-from trainer import *
+from .trainer import *
 from tqdm import tqdm
 import os
 import numpy as np

@@ -69,6 +69,7 @@ def init_args():
                         help="Directory to store exported CSV results")
     parser.add_argument("--extra_sys_path", type=Path, default=default_sys_path,
                         help="Additional path to append to sys.path for imports")
+    # LLock args
     parser.add_argument(
         "--lock_type",
         type=str,
@@ -79,13 +80,13 @@ def init_args():
     parser.add_argument(
         "--lock_epsilon",
         type=float,
-        default=8 / 255,
+        default=1e-3,
         help="Perturbation budget (epsilon) used by learnability locks",
     )
     parser.add_argument(
         "--lock_mid_planes",
         type=int,
-        default=16,
+        default=64,
         help="Hidden channel size for iResLock transforms",
     )
     # em args

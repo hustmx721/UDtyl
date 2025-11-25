@@ -81,11 +81,12 @@ def train_one_epoch_with_template(
             b_x, b_y = batch
             user_ids = b_y
 
-        b_x = apply_template(b_x.to(device), user_ids.to(device), template)
-        b_y = b_y.to(device)
+        user_ids = user_ids.to(device).long()
+        b_x = apply_template(b_x.to(device), user_ids, template)
+        b_y = b_y.to(device).long()
 
         output = model(b_x)
-        clf_loss = clf_loss_func(output, b_y.long())
+        clf_loss = clf_loss_func(output, b_y)
 
         optimizer.zero_grad()
         clf_loss.backward()
@@ -123,11 +124,12 @@ def evaluate_with_template(model, dataloader, device, template):
                 x, y = batch
                 user_ids = y
 
-            x = apply_template(x.to(device), user_ids.to(device), template)
-            y = y.to(device)
+            user_ids = user_ids.to(device).long()
+            x = apply_template(x.to(device), user_ids, template)
+            y = y.to(device).long()
 
             logits = model(x)
-            loss = clf_loss_func(logits, y.long())
+            loss = clf_loss_func(logits, y)
 
             total_loss += loss.item()
             all_logits.append(logits.detach())
