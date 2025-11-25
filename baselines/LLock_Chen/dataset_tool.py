@@ -1,11 +1,12 @@
 from torchvision import datasets, transforms
-import torch 
+import torch
 import numpy as np
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 
-device = 'cuda'
+# Pick GPU when available but gracefully fall back to CPU so EEG tensors can be preprocessed
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 """
     Input: 1) Pytorch dataset 2) learnability lock
@@ -15,9 +16,13 @@ def gen_unlearnable_dataset(dataset, lock):
     dataset.data = dataset.data.astype(np.float32)
     with torch.no_grad():
         for i in tqdm(range(len(dataset))):
-            d = torch.tensor(dataset.data[i] / 255, dtype=torch.float32 ).to(device).permute(2,0,1)
-            d = lock.transform_sample(d, dataset.targets[i]).clamp(0,1)
-            d = d.permute(1, 2, 0) 
+            sample = torch.tensor(dataset.data[i] / 255, dtype=torch.float32 ).to(device)
+            # Image data usually comes as HWC; EEG tensors are already channel-first
+            if sample.ndim == 3 and sample.shape[-1] in (1, 3):
+                sample = sample.permute(2, 0, 1)
+            d = lock.transform_sample(sample, dataset.targets[i]).clamp(0,1)
+            if d.ndim == 3 and d.shape[0] in (1, 3):
+                d = d.permute(1, 2, 0)
             d = d.detach().cpu().numpy()
             d = d*255
             d = d.astype(np.uint8)
@@ -35,9 +40,12 @@ def gen_unlearnable_dataset_targeted(dataset, lock, target):
     with torch.no_grad():
         for i in tqdm(range(len(dataset))):
             if dataset.targets[i] not in target: continue
-            d = torch.tensor(dataset.data[i] / 255, dtype=torch.float32 ).to(device).permute(2,0,1)
-            d = lock.transform_sample(d, dataset.targets[i]).clamp(0,1)
-            d = d.permute(1, 2, 0) 
+            sample = torch.tensor(dataset.data[i] / 255, dtype=torch.float32 ).to(device)
+            if sample.ndim == 3 and sample.shape[-1] in (1, 3):
+                sample = sample.permute(2, 0, 1)
+            d = lock.transform_sample(sample, dataset.targets[i]).clamp(0,1)
+            if d.ndim == 3 and d.shape[0] in (1, 3):
+                d = d.permute(1, 2, 0)
             d = d.detach().cpu().numpy()
             d = d*255
             d = d.astype(np.uint8)
@@ -49,9 +57,12 @@ def retrive_clean_dataset(dataset, lock):
     dataset.data = dataset.data.astype(np.float32)
     with torch.no_grad():
         for i in tqdm(range(len(dataset))):
-            d = torch.tensor(dataset.data[i] / 255, dtype=torch.float32 ).to(device).permute(2,0,1)
-            d = lock.inv_transform_sample(d, dataset.targets[i]).clamp(0,1)
-            d = d.permute(1, 2, 0) 
+            sample = torch.tensor(dataset.data[i] / 255, dtype=torch.float32 ).to(device)
+            if sample.ndim == 3 and sample.shape[-1] in (1, 3):
+                sample = sample.permute(2, 0, 1)
+            d = lock.inv_transform_sample(sample, dataset.targets[i]).clamp(0,1)
+            if d.ndim == 3 and d.shape[0] in (1, 3):
+                d = d.permute(1, 2, 0)
             d = d.detach().cpu().numpy()
             d = d*255
             d = d.astype(np.uint8)
