@@ -2,10 +2,10 @@ echo "LLock Experiments"
 
 datasets=("Rest" "Transient" "Steady" "Motor")
 models=("EEGNet" "DeepConvNet" "ShallowConvNet")
-locktypes=("linear" "ires")
+locktypes=("ires")
 
 gpus=(3 4 5 6)
-max_jobs=2
+max_jobs=3
 jobs=()
 job_idx=0 
 
@@ -18,7 +18,7 @@ for dataset in "${datasets[@]}"; do
       echo "Launch: dataset=${dataset}, model=${model}, gpu=${gpu_id}, locktype=${locktype}"
 
       # Start job in background
-      python -u main_LLock.py --dataset="$dataset" --gpuid="$gpu_id" --model="$model" --lock_type="$locktype" 
+      python -u main_LLock.py --dataset="$dataset" --gpuid="$gpu_id" --model="$model" --lock_type="$locktype" &
       jobs+=($!) # Store the PID
 
       # Limit the number of running jobs
