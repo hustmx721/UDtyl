@@ -1,12 +1,14 @@
-import utils
+import os
+from abc import ABC, abstractmethod
+
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-from abc import ABC, abstractmethod
-from trainer import *
 from tqdm import tqdm
-import os
-import numpy as np
+
+from . import utils
+from .trainer import *
 import iResNet
 
 
@@ -73,6 +75,7 @@ class LinearLock(Lock):
         super(LinearLock, self).__init__(epsilon, lock_params, device)
         self.n_class = self.lock_params['n_class']
         self.n_channel = self.lock_params['n_channel']
+        # EEG inputs may carry arbitrary spatial dimensions; record them for weight init
         self.input_shape = self.lock_params.get('input_shape')
         self.setup()  # initialize W and b
     
