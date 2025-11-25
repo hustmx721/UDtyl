@@ -1,12 +1,18 @@
+from pathlib import Path
+
 from tqdm import tqdm
 from .utils import read_config
 import torch
-import torch.nn as nn 
+import torch.nn as nn
 
 
-torch_config = read_config("config.ini")['TORCH']
-use_cuda = torch_config['gpu']
-device = torch.device("cuda" if use_cuda else "cpu")
+# Gracefully read config.ini even when launched outside the LLock folder
+_cfg_path = Path(__file__).resolve().parent / "config.ini"
+torch_config = read_config(str(_cfg_path))
+# Older config files store "gpu" in DEFAULT instead of a TORCH section
+_torch_section = torch_config["TORCH"] if "TORCH" in torch_config else torch_config["DEFAULT"]
+use_cuda = _torch_section.getboolean("gpu", fallback=torch.cuda.is_available())
+device = torch.device("cuda" if use_cuda and torch.cuda.is_available() else "cpu")
 
 
 """
