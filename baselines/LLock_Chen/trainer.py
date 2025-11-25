@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from tqdm import tqdm
-from utils import read_config
+from .utils import read_config
 import torch
 import torch.nn as nn
 

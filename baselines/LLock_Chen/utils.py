@@ -8,7 +8,7 @@ import os
 def makedir(dir='./default_dir'):
     if not os.path.exists(dir): os.mkdir(dir)
         
-"""
+""" 
     create config.ini file
 """
 def create_config(name):

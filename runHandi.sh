@@ -7,7 +7,7 @@ handis=("sn" "stft" "rand")
 handi_alpha=0.05
 
 gpus=(3 4 5 6)
-max_jobs=8
+max_jobs=2
 jobs=()
 job_idx=0                # 用来轮询分配 GPU
 
