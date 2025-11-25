@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from . import utils
 from .trainer import *
-import iResNet
+from .iResNet import Conv_iResNet
 
 
 class Lock(nn.Module):
@@ -294,7 +294,7 @@ class iResLock(Lock):
         img_shape = self.lock_params['in_shape']
         self.transforms = list()
         for i in range(self.n_class):
-            net = iResNet.Conv_iResNet( mid_planes=self.mid_planes, in_planes=self.n_channel, in_shape = img_shape, num_classes=self.n_class,
+            net = Conv_iResNet( mid_planes=self.mid_planes, in_planes=self.n_channel, in_shape = img_shape, num_classes=self.n_class,
                                                           num_layers=1, epsilon=self.epsilon ).to(self.device)
             if weights is not None: net.load_state_dict(weights[i])
             self.transforms.append(net)
