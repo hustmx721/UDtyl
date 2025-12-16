@@ -1,21 +1,17 @@
 import argparse
 import math
-import os
 import sys
 import time
 from copy import deepcopy
 from pathlib import Path
-from typing import Callable, Iterable, List, Optional, Tuple
+from typing import Callable, Iterable, Optional, Tuple
 
-import numpy as np
-import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 from tqdm import tqdm
 
-from evaluate import calculate_metrics
 from utils.Logging import Logger
 from utils.dataset import set_seed
 from utils.init_all import load_all, load_data, set_args
@@ -25,7 +21,8 @@ from utils.models import LoadModel
 class FrequencyDomainPerturber(nn.Module):
     """Learnable frequency-domain magnitude perturbation template.
 
-    Supports **class-wise templates** so each UID shares the same perturbation.
+    Owns the learnable template ``delta`` with shape ``(1, C, F, 1)`` and
+    applies it to the STFT magnitude of the input EEG.
     """
 
     def __init__(
@@ -36,8 +33,6 @@ class FrequencyDomainPerturber(nn.Module):
         epsilon: float = 0.05,
         mask: Optional[Tensor] = None,
         device: Optional[torch.device] = None,
-        *,
-        num_uid_classes: int,
     ) -> None:
         super().__init__()
         self.channels = channels
@@ -45,40 +40,27 @@ class FrequencyDomainPerturber(nn.Module):
         self.hop_length = hop_length or n_fft // 4
         self.epsilon = epsilon
         self.device = device or torch.device("cpu")
-        if num_uid_classes is None or num_uid_classes <= 0:
-            raise ValueError("Class-wise perturbation requires a positive num_uid_classes.")
-        self.num_uid_classes = num_uid_classes
 
         self.register_buffer("window", torch.hann_window(self.n_fft, device=self.device))
         n_freq = n_fft // 2 + 1
-        delta_shape = (self.num_uid_classes, channels, n_freq, 1)
-        delta = torch.zeros(delta_shape, device=self.device)
+        delta = torch.zeros(1, channels, n_freq, 1, device=self.device)
         self.delta = nn.Parameter(delta)
 
-        mask_shape = (1, channels, n_freq, 1)
         if mask is not None:
             self.register_buffer("mask", mask)
         else:
-            self.register_buffer("mask", torch.ones(mask_shape, device=self.device))
+            self.register_buffer("mask", torch.ones(1, channels, n_freq, 1, device=self.device))
 
-    def forward(
-        self,
-        x: Tensor,
-        uid_labels: Optional[Tensor] = None,
-        transform: Optional[Callable[[Tensor], Tensor]] = None,
-    ) -> Tensor:
+    def forward(self, x: Tensor, transform: Optional[Callable[[Tensor], Tensor]] = None) -> Tensor:
         """Apply the learnable perturbation in the STFT magnitude domain.
 
         Args:
             x: EEG batch of shape ``(B, 1, C, T)``.
-            uid_labels: Required when ``classwise=True``; UID indices for each sample.
-            transform: Optional callable for EOT; applied before STFT on shape ``(B, C, T)``.
+            transform: Optional callable for EOT; applied before STFT.
         """
 
         if x.dim() != 4 or x.size(1) != 1:
             raise ValueError(f"Expected input shape (B,1,C,T), got {tuple(x.shape)}")
-        if uid_labels is None:
-            raise ValueError("uid_labels must be provided for class-wise perturbation.")
 
         batch, _, channels, time_steps = x.shape
         x_bar = x.squeeze(1)
@@ -99,8 +81,7 @@ class FrequencyDomainPerturber(nn.Module):
         phase = torch.angle(stft)
 
         delta_tanh = torch.tanh(self.delta) * self.epsilon
-        delta_selected = delta_tanh[uid_labels.long()]  # (B, C, F, 1)
-        masked_delta = self.mask * delta_selected
+        masked_delta = self.mask * delta_tanh
         updated_amplitude = torch.relu(amplitude + masked_delta)
 
         modified = torch.polar(updated_amplitude, phase)
@@ -154,25 +135,20 @@ def _resample_jitter(x: Tensor, max_rate_delta: float = 0.05) -> Tensor:
 
 
 def build_eot_transform(args: argparse.Namespace) -> Callable[[Tensor], Tensor]:
-    """Build an EOT transform with per-augmentation toggles and probabilities."""
-
-    steps: list[tuple[Callable[[Tensor], Tensor], float]] = []
-    if args.enable_eot_shift and args.eot_shift > 0:
-        steps.append((lambda t: _random_shift(t, args.eot_shift), args.eot_shift_prob))
-    if args.enable_eot_scale and args.eot_scale:
-        steps.append((lambda t: _random_scale(t, args.eot_scale_min, args.eot_scale_max), args.eot_scale_prob))
-    if args.enable_eot_channel_dropout and args.eot_channel_dropout > 0:
-        steps.append((lambda t: _channel_dropout(t, args.eot_channel_dropout), args.eot_channel_dropout_prob))
-    if args.enable_eot_resample and args.eot_resample > 0:
-        steps.append((lambda t: _resample_jitter(t, args.eot_resample), args.eot_resample_prob))
+    transforms = []
+    if args.eot_shift > 0:
+        transforms.append(lambda t: _random_shift(t, args.eot_shift))
+    if args.eot_scale:
+        transforms.append(lambda t: _random_scale(t, args.eot_scale_min, args.eot_scale_max))
+    if args.eot_channel_dropout > 0:
+        transforms.append(lambda t: _channel_dropout(t, args.eot_channel_dropout))
+    if args.eot_resample > 0:
+        transforms.append(lambda t: _resample_jitter(t, args.eot_resample))
 
     def apply_all(signal: Tensor) -> Tensor:
         out = signal
-        for fn, prob in steps:
-            if prob <= 0:
-                continue
-            if prob >= 1.0 or torch.rand(1, device=signal.device).item() < prob:
-                out = fn(out)
+        for fn in transforms:
+            out = fn(out)
         return out
 
     return apply_all
@@ -224,20 +200,7 @@ def _extract_labels(batch: Iterable[Tensor]) -> Tuple[Tensor, Tensor, Optional[T
 def _compute_uniform_kl(p: Tensor) -> Tensor:
     num_classes = p.size(-1)
     uniform = torch.full_like(p, 1.0 / num_classes)
-    return F.kl_div(torch.log(p + 1e-8), uniform, reduction="batchmean")
-
-
-def _build_index_label_map(loader) -> dict[int, int]:
-    """Map sample indices to labels from a loader that returns (x, y, idx)."""
-    mapping: dict[int, int] = {}
-    for _, labels, indices in loader:
-        for idx, label in zip(indices.tolist(), labels.tolist()):
-            mapping[int(idx)] = int(label)
-    return mapping
-
-
-def _gather_uid_labels(indices: Tensor, mapping: dict[int, int], device: torch.device) -> Tensor:
-    return torch.tensor([mapping[int(i)] for i in indices.tolist()], device=device)
+    return F.kl_div(torch.log(uniform), p, reduction="batchmean")
 
 
 def train_distillation(args: argparse.Namespace) -> None:
@@ -246,20 +209,10 @@ def train_distillation(args: argparse.Namespace) -> None:
     eot_transform = build_eot_transform(args)
 
     teacher, device = _prepare_teacher(args)
+    uid_adv = _prepare_uid_adv(args, device)
 
-    uid_args = deepcopy(args)
-    uid_args.is_task = False
-    uid_args = set_args(uid_args)
-    uid_adv = _prepare_uid_adv(uid_args, device)
-
-    trainloader_task, valloader_task, testloader_task = load_data(args, include_index=True)
-    trainloader_uid, valloader_uid, testloader_uid = load_data(uid_args, include_index=True)
-
-    train_uid_map = _build_index_label_map(trainloader_uid)
-    val_uid_map = _build_index_label_map(valloader_uid)
-    test_uid_map = _build_index_label_map(testloader_uid)
-
-    sample_x = next(iter(trainloader_task))[0]
+    trainloader, valloader, _ = load_data(args, include_index=True)
+    sample_x = next(iter(trainloader))[0]
     channels = sample_x.shape[2]
 
     perturber = FrequencyDomainPerturber(
@@ -268,7 +221,6 @@ def train_distillation(args: argparse.Namespace) -> None:
         hop_length=args.hop_length,
         epsilon=args.epsilon_a,
         device=device,
-        num_uid_classes=uid_args.nclass,
     ).to(device)
 
     optimizer = torch.optim.Adam([perturber.delta], lr=args.lr)
@@ -276,11 +228,12 @@ def train_distillation(args: argparse.Namespace) -> None:
     for epoch in range(args.epochs):
         perturber.train()
         running_loss = 0.0
-        for batch in tqdm(trainloader_task, desc=f"Epoch {epoch + 1}/{args.epochs}"):
-            x, y_task, indices = batch
+        for batch in tqdm(trainloader, desc=f"Epoch {epoch + 1}/{args.epochs}"):
+            x, y, u = _extract_labels(batch)
             x = x.to(device)
-            y_task = y_task.to(device)
-            uid_labels = _gather_uid_labels(indices, train_uid_map, device)
+            y = y.to(device)
+            if u is not None:
+                u = u.to(device)
 
             x_bar = x.squeeze(1)
             with torch.no_grad():
@@ -288,7 +241,7 @@ def train_distillation(args: argparse.Namespace) -> None:
                 teacher_logits = teacher(x_eot.unsqueeze(1))
                 teacher_prob = F.softmax(teacher_logits, dim=1)
 
-            x_prime = perturber(x, uid_labels=uid_labels, transform=lambda _: x_eot)
+            x_prime = perturber(x, transform=lambda _: x_eot)
             teacher_logits_prime = teacher(x_prime)
             teacher_prob_prime = F.softmax(teacher_logits_prime, dim=1)
 
@@ -296,7 +249,7 @@ def train_distillation(args: argparse.Namespace) -> None:
             uid_prob_prime = F.softmax(uid_logits_prime, dim=1)
 
             kl_task = F.kl_div(torch.log(teacher_prob_prime + 1e-8), teacher_prob, reduction="batchmean")
-            ce_task = F.cross_entropy(teacher_logits_prime, y_task.long())
+            ce_task = F.cross_entropy(teacher_logits_prime, y.long())
             kl_uid = _compute_uniform_kl(uid_prob_prime)
             reg = perturber.delta_regularizer
 
@@ -313,171 +266,30 @@ def train_distillation(args: argparse.Namespace) -> None:
 
             running_loss += loss.item()
 
-        avg_loss = running_loss / max(1, len(trainloader_task))
+        avg_loss = running_loss / max(1, len(trainloader))
         print(f"Epoch {epoch + 1}: Loss={avg_loss:.6f}, Reg={reg.item():.6f}")
 
         if (epoch + 1) % args.val_interval == 0:
             perturber.eval()
-            (
-                val_task_acc,
-                val_task_f1,
-                val_task_bca,
-                val_task_eer,
-                val_uid_acc,
-                val_uid_f1,
-                val_uid_bca,
-                val_uid_eer,
-            ) = evaluate_metrics(
-                perturber,
-                teacher,
-                uid_adv,
-                valloader_task,
-                val_uid_map,
-                eot_transform,
-                device,
-                apply_perturb=True,
-            )
-            print(
-                f"Validation @ epoch {epoch + 1}: "
-                f"task_acc={val_task_acc:.4f}, task_f1={val_task_f1:.4f}, task_bca={val_task_bca:.4f}, task_eer={val_task_eer:.4f} | "
-                f"uid_acc={val_uid_acc:.4f}, uid_f1={val_uid_f1:.4f}, uid_bca={val_uid_bca:.4f}, uid_eer={val_uid_eer:.4f}"
-            )
+            val_loss = 0.0
+            with torch.no_grad():
+                for batch in valloader:
+                    x, y, u = _extract_labels(batch)
+                    x = x.to(device)
+                    y = y.to(device)
+                    x_bar = x.squeeze(1)
+                    x_eot = eot_transform(x_bar)
+                    x_prime = perturber(x, transform=lambda _: x_eot)
+                    logits = teacher(x_prime)
+                    val_loss += F.cross_entropy(logits, y.long()).item()
+            val_loss /= max(1, len(valloader))
+            print(f"Validation loss at epoch {epoch + 1}: {val_loss:.6f}")
 
     if args.save_delta:
         save_path = Path(args.save_delta)
         save_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(perturber.state_dict(), save_path)
         print(f"Saved perturbation template to {save_path}")
-
-    perturber.eval()
-    # Report clean vs perturbed accuracies on the held-out test split
-    clean_task_acc, clean_task_f1, clean_task_bca, clean_task_eer, clean_uid_acc, clean_uid_f1, clean_uid_bca, clean_uid_eer = evaluate_metrics(
-        perturber,
-        teacher,
-        uid_adv,
-        testloader_task,
-        test_uid_map,
-        eot_transform,
-        device,
-        apply_perturb=False,
-    )
-    test_task_acc, test_task_f1, test_task_bca, test_task_eer, test_uid_acc, test_uid_f1, test_uid_bca, test_uid_eer = evaluate_metrics(
-        perturber,
-        teacher,
-        uid_adv,
-        testloader_task,
-        test_uid_map,
-        eot_transform,
-        device,
-        apply_perturb=True,
-    )
-    print(
-        "[Final Test] clean_task: acc={:.4f}, f1={:.4f}, bca={:.4f}, eer={:.4f} | "
-        "clean_uid: acc={:.4f}, f1={:.4f}, bca={:.4f}, eer={:.4f} | "
-        "perturbed_task: acc={:.4f}, f1={:.4f}, bca={:.4f}, eer={:.4f} | "
-        "perturbed_uid: acc={:.4f}, f1={:.4f}, bca={:.4f}, eer={:.4f}".format(
-            clean_task_acc,
-            clean_task_f1,
-            clean_task_bca,
-            clean_task_eer,
-            clean_uid_acc,
-            clean_uid_f1,
-            clean_uid_bca,
-            clean_uid_eer,
-            test_task_acc,
-            test_task_f1,
-            test_task_bca,
-            test_task_eer,
-            test_uid_acc,
-            test_uid_f1,
-            test_uid_bca,
-            test_uid_eer,
-        )
-    )
-    return {
-        "clean_task": (clean_task_acc, clean_task_f1, clean_task_bca, clean_task_eer),
-        "clean_uid": (clean_uid_acc, clean_uid_f1, clean_uid_bca, clean_uid_eer),
-        "perturbed_task": (test_task_acc, test_task_f1, test_task_bca, test_task_eer),
-        "perturbed_uid": (test_uid_acc, test_uid_f1, test_uid_bca, test_uid_eer),
-    }
-
-
-@torch.no_grad()
-def evaluate_metrics(
-    perturber: FrequencyDomainPerturber,
-    teacher: nn.Module,
-    uid_adv: nn.Module,
-    dataloader,
-    uid_map: dict[int, int],
-    eot_transform: Callable[[Tensor], Tensor],
-    device: torch.device,
-    apply_perturb: bool,
-) -> Tuple[float, float, float, float, float, float, float, float]:
-    total_task_logits = []
-    total_task_labels = []
-    total_uid_logits = []
-    total_uid_labels = []
-    for x, y_task, indices in dataloader:
-        x = x.to(device)
-        y_task = y_task.to(device)
-        uid_labels = _gather_uid_labels(indices, uid_map, device)
-
-        if apply_perturb:
-            x_bar = x.squeeze(1)
-            x_eot = eot_transform(x_bar)
-            x_eval = perturber(x, uid_labels=uid_labels, transform=lambda _: x_eot)
-        else:
-            x_eval = x
-
-        task_logits = teacher(x_eval)
-        uid_logits = uid_adv(x_eval)
-
-        total_task_logits.append(task_logits)
-        total_task_labels.append(y_task)
-        total_uid_logits.append(uid_logits)
-        total_uid_labels.append(uid_labels)
-
-    task_logits_cat = torch.cat(total_task_logits, dim=0)
-    task_labels_cat = torch.cat(total_task_labels, dim=0)
-    uid_logits_cat = torch.cat(total_uid_logits, dim=0)
-    uid_labels_cat = torch.cat(total_uid_labels, dim=0)
-
-    task_acc, task_f1, task_bca, task_eer = calculate_metrics(task_labels_cat, task_logits_cat)
-    uid_acc, uid_f1, uid_bca, uid_eer = calculate_metrics(uid_labels_cat, uid_logits_cat)
-
-    return task_acc, task_f1, task_bca, task_eer, uid_acc, uid_f1, uid_bca, uid_eer
-
-
-def summarize_results(results: np.ndarray, seeds: List[int], prefix: str) -> None:
-    row_labels = [str(seed) for seed in seeds] + ["Avg", "Std"]
-    col_labels = ["Acc", "F1", "BCA", "EER"]
-    print(f"{prefix}结果汇总")
-    print(
-        f"{'SEED':<10} {col_labels[0]:<10} {col_labels[1]:<10} {col_labels[2]:<10} {col_labels[3]:<10}"
-    )
-    for i, seed in enumerate(seeds):
-        row = results[i]
-        print(f"{row_labels[i]:<10} {row[0]:<10.4f} {row[1]:<10.4f} {row[2]:<10.4f} {row[3]:<10.4f}")
-    print(
-        f"{row_labels[-2]:<10} {np.mean(results[:, 0]):<10.4f} {np.mean(results[:, 1]):<10.4f} "
-        f"{np.mean(results[:, 2]):<10.4f} {np.mean(results[:, 3]):<10.4f}"
-    )
-    print(
-        f"{row_labels[-1]:<10} {np.std(results[:, 0]):<10.4f} {np.std(results[:, 1]):<10.4f} "
-        f"{np.std(results[:, 2]):<10.4f} {np.std(results[:, 3]):<10.4f}"
-    )
-
-
-def save_results_csv(results: np.ndarray, args, prefix: str, seeds: List[int]) -> None:
-    final_results = np.vstack([results, np.mean(results, axis=0), np.std(results, axis=0)])
-    df = pd.DataFrame(
-        final_results,
-        columns=["Acc", "F1", "BCA", "EER"],
-        index=[*(str(seed) for seed in seeds), "Avg", "Std"],
-    ).round(4)
-    csv_path = args.csv_root / f"{args.dataset}"
-    os.makedirs(csv_path, exist_ok=True)
-    df.to_csv(csv_path / f"{prefix}_{args.task_model}.csv")
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
@@ -511,18 +323,9 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--eot_scale_max", type=float, default=1.1)
     parser.add_argument("--eot_channel_dropout", type=float, default=0.05)
     parser.add_argument("--eot_resample", type=float, default=0.02)
-    parser.add_argument("--enable_eot_shift", action="store_true", default=True)
-    parser.add_argument("--enable_eot_scale", action="store_true", default=True)
-    parser.add_argument("--enable_eot_channel_dropout", action="store_true", default=True)
-    parser.add_argument("--enable_eot_resample", action="store_true", default=True)
-    parser.add_argument("--eot_shift_prob", type=float, default=1.0, help="Probability to apply time shift")
-    parser.add_argument("--eot_scale_prob", type=float, default=1.0, help="Probability to apply scaling")
-    parser.add_argument("--eot_channel_dropout_prob", type=float, default=1.0, help="Probability to apply channel dropout")
-    parser.add_argument("--eot_resample_prob", type=float, default=1.0, help="Probability to apply resampling jitter")
     parser.add_argument("--repeats", type=int, default=1, help="Number of seeds to run")
     parser.add_argument("--log_root", type=Path, default=Path("logs"))
     parser.add_argument("--is_task", type=bool, default=True)
-    parser.add_argument("--csv_root", type=Path, default=Path("csv"), help="Directory to store CSV results")
     return parser
 
 
@@ -531,10 +334,6 @@ def main():
     args = parser.parse_args()
 
     seeds = list(range(args.seed, args.seed + args.repeats))
-    task_results = np.zeros((len(seeds), 4))
-    uid_results = np.zeros((len(seeds), 4))
-    clean_task_results = np.zeros((len(seeds), 4))
-    clean_uid_results = np.zeros((len(seeds), 4))
 
     for idx, seed in enumerate(seeds):
         args.seed = seed
@@ -557,27 +356,12 @@ def main():
         print(f"lambda uid  : {args.lambda_uid}")
         print(f"lambda reg  : {args.lambda_reg}")
 
-        metrics = train_distillation(args)
-        pert_task = metrics["perturbed_task"]
-        pert_uid = metrics["perturbed_uid"]
-        clean_task = metrics["clean_task"]
-        clean_uid = metrics["clean_uid"]
-
-        task_results[idx] = pert_task
-        uid_results[idx] = pert_uid
-        clean_task_results[idx] = clean_task
-        clean_uid_results[idx] = clean_uid
+        train_distillation(args)
 
         print(f"Seed {seed} finished. Time used: {time.time() - start_time:.2f}s")
         sys.stdout = sys.__stdout__
         print(f"Seed {seed} log saved to {log_path}")
 
-    summarize_results(task_results, seeds, "Distill Perturbed Task")
-    summarize_results(uid_results, seeds, "Distill Perturbed UID")
-    save_results_csv(task_results, args, "Distill_TaskPerturbed", seeds)
-    save_results_csv(uid_results, args, "Distill_UIDPerturbed", seeds)
-    save_results_csv(clean_task_results, args, "Distill_TaskClean", seeds)
-    save_results_csv(clean_uid_results, args, "Distill_UIDClean", seeds)
     print("All seeds finished.")
 
 
