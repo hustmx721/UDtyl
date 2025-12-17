@@ -140,6 +140,7 @@ class LinearLock(Lock):
                     (images, labels) = next(data_iter)
 
                 images, labels = images.to(self.device), labels.to(self.device)
+                labels = labels.long()
                 images = self.lock(images, labels).to(self.device)
                 base_model.zero_grad()
                 optimizer.zero_grad()
@@ -155,6 +156,7 @@ class LinearLock(Lock):
             self.W, self.B = Variable(self.W, requires_grad=False), Variable(self.B, requires_grad=False)
             for i, (images, labels) in enumerate(loader):
                 images, labels = images.to(self.device), labels.to(self.device)
+                labels = labels.long()
                 images = self.lock(images, labels).to(self.device)
                 with torch.no_grad():
                     logits = base_model(images)
@@ -176,6 +178,7 @@ class LinearLock(Lock):
             for _ in range(J):
                 for i, (images, labels) in tqdm(enumerate(loader), total=len(loader)):
                     images, labels = images.to(self.device), labels.to(self.device)
+                    labels = labels.long()
                     perturb_img = self.lock(images, labels).to(self.device)
             #             perturb_img = torch.clamp(perturb_img, 0, 1).to(self.device)
                     opt.zero_grad()
@@ -201,6 +204,7 @@ class LinearLock(Lock):
             self.W, self.B = Variable(self.W, requires_grad=False), Variable(self.B, requires_grad=False)
             for i, (images, labels) in enumerate(loader):
                 images, labels = images.to(self.device), labels.to(self.device)
+                labels = labels.long()
                 images = self.lock(images, labels).to(self.device)
                 with torch.no_grad():
                     logits = base_model(images)
@@ -240,7 +244,7 @@ class LinearLock(Lock):
     
     def get_params(self):
         W, b = None, None
-        if self.device=='cuda':
+        if self.device.type == "cuda":
             W, b = self.W.cpu().detach().numpy(), self.B.cpu().detach().numpy()
         else:
             W, b = self.W.detach().numpy(), self.B.detach().numpy()
@@ -348,6 +352,7 @@ class iResLock(Lock):
                     (images, labels) = next(data_iter)
 
                 images, labels = images.to(self.device), labels.to(self.device)
+                labels = labels.long()
                 images = self.lock(images, labels).to(self.device)
                 base_model.zero_grad()
                 optimizer.zero_grad()
@@ -364,6 +369,7 @@ class iResLock(Lock):
             base_model.eval()
             for i, (images, labels) in enumerate(loader):
                 images, labels = images.to(self.device), labels.to(self.device)
+                labels = labels.long()
                 images = self.lock(images, labels).to(self.device)
                 with torch.no_grad():
                     logits = base_model(images)
@@ -382,6 +388,7 @@ class iResLock(Lock):
             for _ in range(J):
                 for i, (images, labels) in tqdm(enumerate(loader), total=len(loader)):
                     images, labels = images.to(self.device), labels.to(self.device)
+                    labels = labels.long()
                     perturb_img = self.lock(images, labels).to(self.device)
             #             perturb_img = torch.clamp(perturb_img, 0, 1).to(self.device)
                     opt.zero_grad()
@@ -402,6 +409,7 @@ class iResLock(Lock):
             self.switch_mode('eval')
             for i, (images, labels) in enumerate(loader):
                 images, labels = images.to(self.device), labels.to(self.device)
+                labels = labels.long()
                 images = self.lock(images, labels).to(self.device)
                 with torch.no_grad():
                     logits = base_model(images)

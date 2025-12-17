@@ -86,7 +86,7 @@ def init_args():
     parser.add_argument(
         "--lock_mid_planes",
         type=int,
-        default=64,
+        default=4,
         help="Hidden channel size for iResLock transforms",
     )
     # em args

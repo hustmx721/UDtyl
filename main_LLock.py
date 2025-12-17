@@ -88,6 +88,7 @@ def evaluate_with_lock(model, lock, dataloader, device: torch.device):
             else:
                 x, y = batch
             x, y = x.to(device), y.to(device)
+            y = y.long()
 
             locked_x = lock.lock(x, y).to(device)
             logits = model(locked_x)
@@ -137,7 +138,7 @@ def save_results_csv(results: np.ndarray, args, prefix: str, seeds: List[int]):
     csv_path = args.csv_root / f"{args.dataset}"
     if not os.path.exists(csv_path):
         os.makedirs(csv_path)
-    df.to_csv(csv_path / f"{prefix}_{args.model}.csv")
+    df.to_csv(csv_path / f"LLock_{prefix}_{args.lock_type}_{args.model}.csv")
 
 
 def main():
@@ -156,7 +157,7 @@ def main():
 
         results = np.zeros((len(seeds), 4))
 
-        log_path = refreshed_args.log_root / f"{refreshed_args.dataset}_LLock_{mode_tag}_{refreshed_args.model}.log"
+        log_path = refreshed_args.log_root / f"LLock_{refreshed_args.lock_type}_{refreshed_args.dataset}_LLock_{mode_tag}_{refreshed_args.model}.log"
         sys.stdout = Logger(log_path)
 
         for idx, seed in enumerate(seeds):
@@ -210,11 +211,11 @@ def main():
             torch.save(
                 model.state_dict(),
                 os.path.join(
-                    model_path, f"LLock_{mode_tag}_{refreshed_args.model}_{refreshed_args.seed}.pth"
+                    model_path, f"LLock_{args.lock_type}_{mode_tag}_{refreshed_args.model}_{refreshed_args.seed}.pth"
                 ),
             )
             lock.save(
-                sname=f"LLock_{mode_tag}_{refreshed_args.model}_{refreshed_args.seed}",
+                sname=f"LLock_{args.lock_type}_{mode_tag}_{refreshed_args.model}_{refreshed_args.seed}",
                 path=model_path,
             )
 
