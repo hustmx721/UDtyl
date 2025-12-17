@@ -4,14 +4,18 @@ set -euo pipefail
 echo "Distillation Experiments"
 
 datasets=("Rest" "Transient" "Steady" "Motor")
-models=("EEGNet" "DeepConvNet" "ShallowConvNet")
-
+# models=("EEGNet" "DeepConvNet" "ShallowConvNet")
+models=("EEGNet")
 # Each entry enables exactly one EOT transform; others are disabled for that run.
-eot_modes=("shift" "scale" "channel_dropout" "resample")
-
+eot_modes=(
+  "shift"
+  "scale"
+  "channel_dropout"
+  "resample"
+)
 gpus=(0 1 2 3 4 5 6)
 
-max_jobs=12
+max_jobs=6
 jobs=()
 job_idx=0
 failed=0
@@ -38,54 +42,47 @@ wait_one() {
 for dataset in "${datasets[@]}"; do
   for model in "${models[@]}"; do
     for eot in "${eot_modes[@]}"; do
-
       gpu_id=${gpus[$(( job_idx % ${#gpus[@]} ))]}
       job_idx=$((job_idx + 1))
 
       # --------- Base: disable all transforms explicitly ----------
-      eot_flags=(
-        --eot_shift 0
-        --eot_shift_prob 0.0
-
-        --eot_scale_min 1.0
-        --eot_scale_max 1.0
-        --eot_scale_prob 0.0
-
-        --eot_channel_dropout 0.0
-        --eot_channel_dropout_prob 0.0
-
-        --eot_resample 0.0
-        --eot_resample_prob 0.0
-      )
-
-      # --------- Enable exactly one transform ----------
       case "$eot" in
         "shift")
-          eot_flags+=(
+          eot_flags=(
+            # eot_shift 平移步长8~32; eot_shift_prob 平移概率 <=1.0
             --eot_shift 16
             --eot_shift_prob 1.0
+            --eot_scale_min 0.0 --eot_scale_max 0.0 --eot_scale_prob 0.0
+            --eot_channel_dropout 0.0 --eot_channel_dropout_prob 0.0
+            --eot_resample 0.0 --eot_resample_prob 0.0
           )
           ;;
         "scale")
-          # 如果你的 argparse 里 --eot_scale 是 store_true，就保留；
-          # 若不存在或不是 bool，请删除这行（否则会报 unrecognized arguments）
-          eot_flags+=(
+          eot_flags=(
+            --eot_shift 0
+            --eot_shift_prob 0.0
             --eot_scale
-            --eot_scale_min 0.9
-            --eot_scale_max 1.1
-            --eot_scale_prob 1.0
+            --eot_scale_min 0.95 --eot_scale_max 1.05 --eot_scale_prob 1.0
+            --eot_channel_dropout 0.0 --eot_channel_dropout_prob 0.0
+            --eot_resample 0.0 --eot_resample_prob 0.0
           )
           ;;
         "channel_dropout")
-          eot_flags+=(
-            --eot_channel_dropout 0.1
-            --eot_channel_dropout_prob 1.0
+          eot_flags=(
+            --eot_shift 0
+            --eot_shift_prob 0.0
+            --eot_channel_dropout 0.1 --eot_channel_dropout_prob 1.0
+            --eot_scale_prob 0.0
+            --eot_resample 0.0 --eot_resample_prob 0.0
           )
           ;;
         "resample")
-          eot_flags+=(
-            --eot_resample 0.02
-            --eot_resample_prob 1.0
+          eot_flags=(
+            --eot_shift 0
+            --eot_shift_prob 0.0
+            --eot_channel_dropout 0.0 --eot_channel_dropout_prob 0.0
+            --eot_scale_prob 0.0
+            --eot_resample 0.05 --eot_resample_prob 1.0
           )
           ;;
         *)
@@ -101,7 +98,7 @@ for dataset in "${datasets[@]}"; do
         --gpuid "${gpu_id}" \
         --task_model "${model}" \
         --uid_model "${model}" \
-        --repeats 1 \
+        --repeats 5 \
         --seed 2024 \
         --log_root logs \
         --csv_root csv \
@@ -115,7 +112,6 @@ for dataset in "${datasets[@]}"; do
         wait_one "${jobs[0]}"
         jobs=("${jobs[@]:1}")
       fi
-
     done
   done
 done
@@ -130,4 +126,4 @@ if (( failed == 1 )); then
   exit 1
 fi
 
-echo "All distillation experiments completed successfully."
+echo "All distillation experiments completed."

@@ -1,6 +1,7 @@
 import argparse
 import math
 import os
+import pickle
 import sys
 import time
 from copy import deepcopy
@@ -12,6 +13,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from sklearn.model_selection import train_test_split
 from torch import Tensor
 from tqdm import tqdm
 
@@ -138,7 +140,11 @@ def _random_scale(x: Tensor, low: float = 0.9, high: float = 1.1) -> Tensor:
 def _channel_dropout(x: Tensor, drop_prob: float = 0.1) -> Tensor:
     if drop_prob <= 0:
         return x
-    mask = torch.ones(x.shape[:-1], device=x.device)
+    if x.dim() < 2:
+        return x
+    # Create channel mask and broadcast across remaining dims (e.g., time)
+    broadcast_shape = (x.size(0), x.size(1), *([1] * (x.dim() - 2)))
+    mask = torch.ones(broadcast_shape, device=x.device)
     dropout_mask = torch.bernoulli((1 - drop_prob) * mask)
     return x * dropout_mask
 
@@ -149,8 +155,10 @@ def _resample_jitter(x: Tensor, max_rate_delta: float = 0.05) -> Tensor:
     batch, channels, time_steps = x.shape
     rate = 1.0 + float(torch.empty(1, device=x.device).uniform_(-max_rate_delta, max_rate_delta))
     new_length = max(1, int(math.ceil(time_steps * rate)))
-    x_resampled = F.interpolate(x.unsqueeze(1), size=new_length, mode="linear", align_corners=False)
-    return F.interpolate(x_resampled, size=time_steps, mode="linear", align_corners=False).squeeze(1)
+    flat = x.reshape(batch * channels, 1, time_steps)  # (B*C, 1, T)
+    up = F.interpolate(flat, size=new_length, mode="linear", align_corners=False)
+    back = F.interpolate(up, size=time_steps, mode="linear", align_corners=False)
+    return back.reshape(batch, channels, time_steps)
 
 
 def build_eot_transform(args: argparse.Namespace) -> Callable[[Tensor], Tensor]:
@@ -227,13 +235,57 @@ def _compute_uniform_kl(p: Tensor) -> Tensor:
     return F.kl_div(torch.log(p + 1e-8), uniform, reduction="batchmean")
 
 
-def _build_index_label_map(loader) -> dict[int, int]:
-    """Map sample indices to labels from a loader that returns (x, y, idx)."""
-    mapping: dict[int, int] = {}
-    for _, labels, indices in loader:
-        for idx, label in zip(indices.tolist(), labels.tolist()):
-            mapping[int(idx)] = int(label)
-    return mapping
+def _build_uid_maps_aligned(args: argparse.Namespace) -> Tuple[dict[int, int], dict[int, int], dict[int, int]]:
+    """Build UID label maps aligned to the task splits (train/val/test).
+
+    This mirrors the splitting logic used by ``load_data`` for task loaders so that
+    indices from task DataLoaders align with the correct UID labels, avoiding
+    missing-key errors when the UID split differs from the task split.
+    """
+
+    OpenBMI = ["MI", "SSVEP", "ERP"]
+    M3CV = ["Rest", "Transient", "Steady", "P300", "Motor", "SSVEP_SA"]
+
+    if args.dataset in OpenBMI:
+        data_train = pickle.load(open(f"/mnt/data1/tyl/data/OpenBMI/Task/{args.dataset}/train.pkl", "rb"))
+        data_test = pickle.load(open(f"/mnt/data1/tyl/data/OpenBMI/Task/{args.dataset}/test.pkl", "rb"))
+
+        task_train_labels = data_train["label"].astype(np.int16).reshape(-1)
+        uid_train_labels = (
+            pickle.load(open(f"/mnt/data1/tyl/data/OpenBMI/processed/{args.dataset}/train.pkl", "rb"))["ori_train_s"]
+            - 1
+        ).astype(np.int16).reshape(-1)
+        uid_test_labels = (
+            pickle.load(open(f"/mnt/data1/tyl/data/OpenBMI/processed/{args.dataset}/test.pkl", "rb"))["ori_test_s"]
+            - 1
+        ).astype(np.int16).reshape(-1)
+    elif args.dataset in M3CV:
+        data_train = pickle.load(open(f"/mnt/data1/tyl/data/M3CV/Task/Session1_{args.dataset}.pkl", "rb"))
+        data_test = pickle.load(open(f"/mnt/data1/tyl/data/M3CV/Task/Session2_{args.dataset}.pkl", "rb"))
+
+        task_train_labels = data_train["label"].astype(np.int16)
+        uid_train_labels = pickle.load(open(f"/mnt/data1/tyl/data/M3CV/Train/T_{args.dataset}.pkl", "rb"))["label"].astype(
+            np.int16
+        )
+        uid_test_labels = pickle.load(open(f"/mnt/data1/tyl/data/M3CV/Test/{args.dataset}.pkl", "rb"))["label"].astype(
+            np.int16
+        )
+    else:
+        raise ValueError("Invalid dataset name")
+
+    indices = np.arange(len(task_train_labels))
+    train_idx, val_idx = train_test_split(
+        indices, test_size=0.2, random_state=args.seed, stratify=task_train_labels
+    )
+
+    train_uid_seq = uid_train_labels[train_idx]
+    val_uid_seq = uid_train_labels[val_idx]
+
+    train_map = {int(i): int(lbl) for i, lbl in enumerate(train_uid_seq)}
+    val_map = {int(i): int(lbl) for i, lbl in enumerate(val_uid_seq)}
+    test_map = {int(i): int(lbl) for i, lbl in enumerate(uid_test_labels)}
+
+    return train_map, val_map, test_map
 
 
 def _gather_uid_labels(indices: Tensor, mapping: dict[int, int], device: torch.device) -> Tensor:
@@ -253,11 +305,7 @@ def train_distillation(args: argparse.Namespace) -> None:
     uid_adv = _prepare_uid_adv(uid_args, device)
 
     trainloader_task, valloader_task, testloader_task = load_data(args, include_index=True)
-    trainloader_uid, valloader_uid, testloader_uid = load_data(uid_args, include_index=True)
-
-    train_uid_map = _build_index_label_map(trainloader_uid)
-    val_uid_map = _build_index_label_map(valloader_uid)
-    test_uid_map = _build_index_label_map(testloader_uid)
+    train_uid_map, val_uid_map, test_uid_map = _build_uid_maps_aligned(args)
 
     sample_x = next(iter(trainloader_task))[0]
     channels = sample_x.shape[2]
