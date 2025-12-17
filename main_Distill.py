@@ -525,7 +525,7 @@ def save_results_csv(results: np.ndarray, args, prefix: str, seeds: List[int]) -
     ).round(4)
     csv_path = args.csv_root / f"{args.dataset}"
     os.makedirs(csv_path, exist_ok=True)
-    df.to_csv(csv_path / f"{prefix}_{args.task_model}.csv")
+    df.to_csv(csv_path / f"Distill_{prefix}_{args.task_model}.csv")
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
@@ -549,7 +549,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--lambda_ce", type=float, default=0.1)
     parser.add_argument("--lambda_uid", type=float, default=2.0)
     parser.add_argument("--lambda_reg", type=float, default=1e-4)
-    parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--epochs", type=int, default=300)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--val_interval", type=int, default=5)
     parser.add_argument("--save_delta", type=str, default="", help="Path to save the perturbation template")
@@ -567,7 +567,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--eot_scale_prob", type=float, default=1.0, help="Probability to apply scaling")
     parser.add_argument("--eot_channel_dropout_prob", type=float, default=1.0, help="Probability to apply channel dropout")
     parser.add_argument("--eot_resample_prob", type=float, default=1.0, help="Probability to apply resampling jitter")
-    parser.add_argument("--repeats", type=int, default=1, help="Number of seeds to run")
+    parser.add_argument("--repeats", type=int, default=5, help="Number of seeds to run")
     parser.add_argument("--log_root", type=Path, default=Path("logs"))
     parser.add_argument("--is_task", type=bool, default=True)
     parser.add_argument("--csv_root", type=Path, default=Path("csv"), help="Directory to store CSV results")
@@ -588,7 +588,7 @@ def main():
         args.seed = seed
         set_seed(seed)
 
-        log_path = args.log_root / f"{args.dataset}_Distill_seed{seed}.log"
+        log_path = args.log_root / f"Distill_{args.dataset}_{args.task_model}.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
         sys.stdout = Logger(log_path)
 
