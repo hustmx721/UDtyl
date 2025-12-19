@@ -248,7 +248,6 @@ def CSP(tx,ty):
 
     return Wb
 
-import EntropyHub as EH
 # 提取脑电信号的熵值
 def Entropy(data:np.ndarray, r:float=0.2, m:int=2, split="fuzzy", windowlen:int=200, step:int=100): # split = "fuzzy", "sample", "app"
     """ 
@@ -259,7 +258,6 @@ def Entropy(data:np.ndarray, r:float=0.2, m:int=2, split="fuzzy", windowlen:int=
             但模糊熵计算速度却比numpy矩阵运算速度快很多;
             故此处实现既有第三方实现,也有库函数实现
     """
-    from pathos.multiprocessing import ThreadPool as Pool #多线程
     def ApEn2 (data :list|np.ndarray, r:float=0.2, m:int =2):
         data = np.squeeze(data)
         th = r * np.std(data) #容限阈值
@@ -267,7 +265,7 @@ def Entropy(data:np.ndarray, r:float=0.2, m:int=2, split="fuzzy", windowlen:int=
             n = len(data)
             x = data[ np.arange(n-m+1).reshape(-1,1) + np.arange(m) ]
             ci = lambda xi: (( np.abs(x-xi).max(1) <=th).sum()) / (n-m+1) # 构建一个匿名函数
-            c = Pool().map (ci, x) #所传递的参数格式: 函数名,函数参数
+            c = [ci(xi) for xi in x]
             return np.sum(np.log(c)) /(n-m+1)
         return phi(m) - phi(m+1)
     
