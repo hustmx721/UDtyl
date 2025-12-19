@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from utils.data_loader import *
 from utils.dataset import set_seed
-from utils.init_all import init_args, set_args, load_all, load_data
+from utils.init_all import apply_thread_limits, init_args, set_args, load_all, load_data
 from utils.Logging import Logger
 
 from evaluate import evaluate
@@ -96,6 +96,7 @@ def TaskClassify(trainloader, valloader, savepath, args):
 def main():
     args = init_args()
     args = set_args(args)
+    apply_thread_limits(getattr(args, "torch_threads", 4))
     device = torch.device("cuda:"+str(args.gpuid) if torch.cuda.is_available() else "cpu")
     results = np.zeros((5, 4))
 

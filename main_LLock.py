@@ -12,7 +12,7 @@ import torch.nn as nn
 
 from baselines.LLock_Chen.LearnabilityLock import LinearLock, iResLock
 from utils.dataset import set_seed
-from utils.init_all import init_args, set_args, load_all, load_data
+from utils.init_all import apply_thread_limits, init_args, set_args, load_all, load_data
 from utils.Logging import Logger
 from evaluate import calculate_metrics
 
@@ -143,6 +143,7 @@ def save_results_csv(results: np.ndarray, args, prefix: str, seeds: List[int]):
 
 def main():
     args = init_args()
+    apply_thread_limits(getattr(args, "torch_threads", 4))
     seeds = list(range(args.seed, args.seed + args.repeats))
 
     def run_mode(is_task_flag: bool):

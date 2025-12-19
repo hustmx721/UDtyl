@@ -3,14 +3,14 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
 # Cap low-level library threading before importing heavy deps to avoid oversubscribing
-DEFAULT_WORKERS = max(1, min(4, (os.cpu_count() or 1)))
+# Allow overriding via DATA_WORKERS env for easier debugging or tighter CPU limits.
+DEFAULT_WORKERS = max(1, int(os.environ.get("DATA_WORKERS", min(4, (os.cpu_count() or 1)))))
 os.environ.setdefault("OMP_NUM_THREADS", str(DEFAULT_WORKERS))
 os.environ.setdefault("OPENBLAS_NUM_THREADS", str(DEFAULT_WORKERS))
 os.environ.setdefault("MKL_NUM_THREADS", str(DEFAULT_WORKERS))
 os.environ.setdefault("NUMEXPR_NUM_THREADS", str(DEFAULT_WORKERS))
 
 import scipy, pickle
-import matplotlib.pyplot as plt
 import numpy as np
 import psutil
 import torch
