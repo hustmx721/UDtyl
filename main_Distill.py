@@ -6,7 +6,7 @@ import sys
 import time
 from copy import deepcopy
 from pathlib import Path
-from typing import Callable, Iterable, List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -186,6 +186,8 @@ def build_eot_transform(args: argparse.Namespace) -> Callable[[Tensor], Tensor]:
     return apply_all
 
 
+
+
 def _prepare_teacher(args: argparse.Namespace) -> Tuple[nn.Module, torch.device]:
     teacher_args = deepcopy(args)
     teacher_args.is_task = True
@@ -219,14 +221,6 @@ def _prepare_uid_adv(args: argparse.Namespace, device: torch.device) -> nn.Modul
     for p in model.parameters():
         p.requires_grad_(False)
     return model
-
-
-def _extract_labels(batch: Iterable[Tensor]) -> Tuple[Tensor, Tensor, Optional[Tensor]]:
-    if len(batch) == 3:
-        x, y, u = batch
-        return x, y, u
-    x, y = batch
-    return x, y, None
 
 
 def _compute_uniform_kl(p: Tensor) -> Tensor:
