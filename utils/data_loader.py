@@ -1,9 +1,16 @@
 import os, gc
-import scipy, pickle
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
-import matplotlib.pyplot as plt
+# Cap low-level library threading before importing heavy deps to avoid oversubscribing
+# Allow overriding via DATA_WORKERS env for easier debugging or tighter CPU limits.
+DEFAULT_WORKERS = max(1, int(os.environ.get("DATA_WORKERS", min(4, (os.cpu_count() or 1)))))
+os.environ.setdefault("OMP_NUM_THREADS", str(DEFAULT_WORKERS))
+os.environ.setdefault("OPENBLAS_NUM_THREADS", str(DEFAULT_WORKERS))
+os.environ.setdefault("MKL_NUM_THREADS", str(DEFAULT_WORKERS))
+os.environ.setdefault("NUMEXPR_NUM_THREADS", str(DEFAULT_WORKERS))
+
+import scipy, pickle
 import numpy as np
 import psutil
 import torch
@@ -22,11 +29,8 @@ def LimitCpu():
     max_chunk_size = int((available_memory // (4 * num_cores)) // 16)  
     return max_chunk_size
 
-global max_chunk_size 
+global max_chunk_size
 max_chunk_size = LimitCpu()
-os.environ["OPENBLAS_NUM_THREADS"] = "4"
-os.environ["MKL_NUM_THREADS"] = "4"
-os.environ["NUMEXPR_NUM_THREADS"] = "4"
 
 
 def _resolve_device(target_device):
@@ -166,8 +170,8 @@ def SubBandSplit(data: np.ndarray, freq_start: int = 4, freq_end: int = 40, band
         return scipy.signal.sosfilt(sos, data, axis=-1)
 
     subbands = np.arange(freq_start, freq_end + 1, bandwidth)
-    with ThreadPoolExecutor() as executor:
-        band_args = [(data, low_freq, high_freq) 
+    with ThreadPoolExecutor(max_workers=DEFAULT_WORKERS) as executor:
+        band_args = [(data, low_freq, high_freq)
                      for low_freq, high_freq in zip(subbands[:-1], subbands[1:])]
         results = list(executor.map(process_single_band, band_args))
 
@@ -197,7 +201,7 @@ def GetLoaderOpenBMI(
     def process_data(data):
         processed_data = np.empty_like(data)
         chunk_size = min(data.shape[0], max_chunk_size)
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        with ThreadPoolExecutor(max_workers=DEFAULT_WORKERS) as executor:
             futures = []
             for i in range(0, data.shape[0], chunk_size):
                 chunk = data[i:i+chunk_size]
@@ -291,7 +295,7 @@ def GetLoaderM3CV(
     def process_data(data):
         processed_data = np.empty_like(data)
         chunk_size = min(data.shape[0], max_chunk_size)
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        with ThreadPoolExecutor(max_workers=DEFAULT_WORKERS) as executor:
             futures = []
             for i in range(0, data.shape[0], chunk_size):
                 chunk = data[i:i+chunk_size]

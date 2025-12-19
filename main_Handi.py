@@ -13,7 +13,7 @@ import pandas as pd
 
 from gene_handi_UD import RandTemplate, SNTemplate, STFTRandTemplate
 from utils.dataset import set_seed
-from utils.init_all import init_args, set_args, load_all, load_data
+from utils.init_all import apply_thread_limits, init_args, set_args, load_all, load_data
 from utils.Logging import Logger
 
 warnings.filterwarnings("ignore")
@@ -336,6 +336,7 @@ def run_experiment(args, device: torch.device, is_task: bool):
 def main():
     args = init_args()
     args = set_args(args)
+    apply_thread_limits(getattr(args, "torch_threads", 4))
     device = torch.device("cuda:" + str(args.gpuid) if torch.cuda.is_available() else "cpu")
 
     log_path = args.log_root / f"Handi_{args.handi_method}_{args.dataset}_{args.model}.log"

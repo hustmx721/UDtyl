@@ -13,7 +13,7 @@ from tqdm import tqdm
 import copy
 
 from utils.dataset import set_seed
-from utils.init_all import init_args, set_args, load_all, load_data
+from utils.init_all import apply_thread_limits, init_args, set_args, load_all, load_data
 from utils.Logging import Logger
 
 from evaluate import evaluate
@@ -278,6 +278,7 @@ def run_mode(base_args, is_task: bool, results: np.ndarray, log_prefix: str, pre
 def main():
     args = init_args()
     args = set_args(args)
+    apply_thread_limits(getattr(args, "torch_threads", 4))
     log_path = args.log_root / f"EM_{args.dataset}_{args.model}.log"
     sys.stdout = Logger(log_path)
 

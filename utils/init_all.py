@@ -203,12 +203,23 @@ def load_data(args: argparse.ArgumentParser, include_index: bool = False):
     return trainloader, valloader, testloader
 
 
+
+def apply_thread_limits(thread_count: int | None):
+    """Clamp CPU thread usage for torch and BLAS backends.
+
+    Ensures a consistent ceiling across libraries and provides a single place to
+    tighten thread counts when running multiple experiments in parallel.
+    """
+    thread_count = max(1, thread_count or 1)
+    torch.set_num_threads(thread_count)
+    torch.set_num_interop_threads(max(1, thread_count // 2))
+    for var in ["OMP_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS", "OPENBLAS_NUM_THREADS"]:
+        os.environ[var] = str(thread_count)
+
+
 def load_all(args: argparse.ArgumentParser):
-    # torch.set_num_threads(max(1, args.torch_threads))
-    # torch.set_num_interop_threads(max(1, args.torch_threads // 2))
-    # os.environ["OMP_NUM_THREADS"] = str(args.torch_threads)
-    # os.environ["MKL_NUM_THREADS"] = str(args.torch_threads)
-    # os.environ["NUMEXPR_NUM_THREADS"] = str(args.torch_threads)
+    thread_count = max(1, getattr(args, "torch_threads", 4))
+    apply_thread_limits(thread_count)
     device = torch.device("cuda:"+str(args.gpuid) if torch.cuda.is_available() else "cpu")
     model = LoadModel(model_name=args.model, Chans=args.channel, Samples=int(args.fs*args.timepoint), n_classes=args.nclass).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.initlr)
