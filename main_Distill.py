@@ -549,7 +549,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--lambda_ce", type=float, default=0.1)
     parser.add_argument("--lambda_uid", type=float, default=2.0)
     parser.add_argument("--lambda_reg", type=float, default=1e-4)
-    parser.add_argument("--epochs", type=int, default=300)
+    parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--val_interval", type=int, default=5)
     parser.add_argument("--save_delta", type=str, default="", help="Path to save the perturbation template")

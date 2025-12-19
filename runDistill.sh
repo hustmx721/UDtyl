@@ -4,8 +4,8 @@ set -euo pipefail
 echo "Distillation Experiments"
 
 datasets=("Rest" "Transient" "Steady" "Motor")
-# models=("EEGNet" "DeepConvNet" "ShallowConvNet")
-models=("EEGNet")
+models=("EEGNet" "DeepConvNet" "ShallowConvNet")
+# models=("EEGNet")
 # Each entry enables exactly one EOT transform; others are disabled for that run.
 eot_modes=(
   "shift"
@@ -13,9 +13,9 @@ eot_modes=(
   "channel_dropout"
   "resample"
 )
-gpus=(0 1 2 3 4 5 6)
+gpus=(1 2 3 4)
 
-max_jobs=6
+max_jobs=2
 jobs=()
 job_idx=0
 failed=0

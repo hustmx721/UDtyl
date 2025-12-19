@@ -34,7 +34,7 @@ def calculate_metrics(labels: torch.Tensor, logits: torch.Tensor):
     accuracy = correct / labels.numel()
 
     num_classes = logits.shape[1]
-    labels_one_hot = F.one_hot(labels, num_classes=num_classes).to(logits.dtype)
+    labels_one_hot = F.one_hot(labels.long(), num_classes=num_classes).to(logits.dtype)
     preds_one_hot = F.one_hot(preds, num_classes=num_classes).to(logits.dtype)
 
     true_positives = (labels_one_hot * preds_one_hot).sum(dim=0)
