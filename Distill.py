@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Callable, Iterable, Iterator, Optional, Tuple
+from typing import Iterable, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -140,7 +140,7 @@ class EOTDistribution:
         self.scale_low = float(scale_low)
         self.scale_high = float(scale_high)
 
-    def sample(self, *, device: torch.device, channels: int) -> DeterministicTransform:
+    def sample(self, *, device: torch.device) -> DeterministicTransform:
         # Compose transforms by nesting (shift then scale).
         t: DeterministicTransform = IdentityTransform()
 
@@ -348,7 +348,7 @@ def optimize_delta(
             if eot is None:
                 t = IdentityTransform()
             else:
-                t = eot.sample(device=device, channels=x.shape[2])
+                t = eot.sample(device=device)
 
             # Apply transform to get x_t
             x_t_bar = t.apply(x.squeeze(1))
@@ -409,7 +409,7 @@ def protect_batch(
     if eot is None:
         t = IdentityTransform()
     else:
-        t = eot.sample(device=device, channels=x.shape[2])
+        t = eot.sample(device=device)
 
     x_t_bar = t.apply(x.squeeze(1))
     x_t = x_t_bar.unsqueeze(1)
