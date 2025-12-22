@@ -1,5 +1,4 @@
 import argparse
-import math
 import os
 import pickle
 import sys
@@ -12,12 +11,10 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 from torch import Tensor
-from tqdm import tqdm
 
-from Distill import EOTDistribution, IdentityTransform, STFTDeltaPerturber, kl_pq, uniform_kl
+from Distill import EOTDistribution, IdentityTransform, STFTDeltaPerturber, optimize_delta
 from evaluate import calculate_metrics, evaluate
 from train import train_one_epoch
 from utils.Logging import Logger
@@ -51,6 +48,28 @@ def build_eot_distribution(args: argparse.Namespace) -> Optional[EOTDistribution
         resample_max_rate_delta=args.eot_resample,
         resample_prob=args.eot_resample_prob,
     )
+
+
+def describe_eot(args: argparse.Namespace) -> str:
+    """Build a short tag that captures the enabled EOT transforms for file names."""
+
+    parts = []
+    if args.eot_shift_prob > 0 and args.eot_shift > 0:
+        parts.append(f"shift{args.eot_shift}_p{args.eot_shift_prob}")
+    if args.eot_scale_prob > 0 and args.eot_scale:
+        parts.append(
+            f"scale{args.eot_scale_min}-{args.eot_scale_max}_p{args.eot_scale_prob}"
+        )
+    if args.eot_channel_dropout_prob > 0 and args.eot_channel_dropout > 0:
+        parts.append(
+            f"chdrop{args.eot_channel_dropout}_p{args.eot_channel_dropout_prob}"
+        )
+    if args.eot_resample_prob > 0 and args.eot_resample > 0:
+        parts.append(f"resample{args.eot_resample}_p{args.eot_resample_prob}")
+
+    if not parts:
+        return "noeot"
+    return "eot_" + "_".join(parts)
 
 def _resolve_checkpoint_path(
     args: argparse.Namespace, provided: str, prefix: str, model_name: str
@@ -301,84 +320,21 @@ def train_distillation(args: argparse.Namespace) -> None:
         device=device,
     ).to(device)
 
-    optimizer = torch.optim.Adam([perturber.delta], lr=args.lr)
-
-    for epoch in range(args.epochs):
-        perturber.train()
-        running_loss = 0.0
-        for batch in tqdm(trainloader_task, desc=f"Epoch {epoch + 1}/{args.epochs}"):
-            x, y_task, indices = batch
-            x = x.to(device)
-            y_task = y_task.to(device)
-            if eot_distribution is None:
-                transform = IdentityTransform()
-            else:
-                transform = eot_distribution.sample(device=device)
-
-            x_t_bar = transform.apply(x.squeeze(1))
-            x_t = x_t_bar.unsqueeze(1)
-
-            with torch.no_grad():
-                teacher_prob = F.softmax(teacher(x_t), dim=1)
-
-            x_prime = perturber(x_t)
-            x_prime_t = transform.apply(x_prime.squeeze(1)).unsqueeze(1)
-
-            teacher_logits_prime = teacher(x_prime_t)
-            teacher_prob_prime = F.softmax(teacher_logits_prime, dim=1)
-
-            uid_logits_prime = uid_adv(x_prime_t)
-            uid_prob_prime = F.softmax(uid_logits_prime, dim=1)
-
-            kl_task = kl_pq(teacher_prob, teacher_prob_prime, reduction="batchmean")
-            ce_task = F.cross_entropy(teacher_logits_prime, y_task.long())
-            kl_uid = uniform_kl(uid_prob_prime, uid_args.nclass, reduction="batchmean")
-            reg = perturber.l2_regularizer()
-
-            loss = (
-                args.lambda_task * kl_task
-                + args.lambda_ce * ce_task
-                + args.lambda_uid * kl_uid
-                + args.lambda_reg * reg
-            )
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            perturber.clip_()
-
-            running_loss += loss.item()
-
-        avg_loss = running_loss / max(1, len(trainloader_task))
-        print(f"Epoch {epoch + 1}: Loss={avg_loss:.6f}, Reg={reg.item():.6f}")
-
-        if (epoch + 1) % args.val_interval == 0:
-            perturber.eval()
-            (
-                val_task_acc,
-                val_task_f1,
-                val_task_bca,
-                val_task_eer,
-                val_uid_acc,
-                val_uid_f1,
-                val_uid_bca,
-                val_uid_eer,
-            ) = evaluate_metrics(
-                perturber,
-                teacher,
-                uid_adv,
-                valloader_task,
-                val_uid_map,
-                eot_distribution,
-                device,
-                apply_perturb=True,
-            )
-            print(
-                f"Validation @ epoch {epoch + 1}: "
-                f"task_acc={val_task_acc:.4f}, task_f1={val_task_f1:.4f}, task_bca={val_task_bca:.4f}, task_eer={val_task_eer:.4f} | "
-                f"uid_acc={val_uid_acc:.4f}, uid_f1={val_uid_f1:.4f}, uid_bca={val_uid_bca:.4f}, uid_eer={val_uid_eer:.4f}"
-            )
+    optimize_delta(
+        perturber=perturber,
+        teacher=teacher,
+        uid_adv=uid_adv,
+        dataloader=trainloader_task,
+        num_uid_classes=uid_args.nclass,
+        lambda_task=args.lambda_task,
+        lambda_uid=args.lambda_uid,
+        lambda_reg=args.lambda_reg,
+        lr=args.lr,
+        epochs=args.epochs,
+        eot=eot_distribution,
+        device=device,
+        log_every=args.val_interval,
+    )
 
     if args.save_delta:
         save_path = Path(args.save_delta)
@@ -387,17 +343,7 @@ def train_distillation(args: argparse.Namespace) -> None:
         print(f"Saved perturbation template to {save_path}")
 
     perturber.eval()
-    # Report clean vs perturbed accuracies on the held-out test split
-    clean_task_acc, clean_task_f1, clean_task_bca, clean_task_eer, clean_uid_acc, clean_uid_f1, clean_uid_bca, clean_uid_eer = evaluate_metrics(
-        perturber,
-        teacher,
-        uid_adv,
-        testloader_task,
-        test_uid_map,
-        eot_distribution,
-        device,
-        apply_perturb=False,
-    )
+    # Report perturbed accuracies on the held-out test split
     test_task_acc, test_task_f1, test_task_bca, test_task_eer, test_uid_acc, test_uid_f1, test_uid_bca, test_uid_eer = evaluate_metrics(
         perturber,
         teacher,
@@ -409,18 +355,8 @@ def train_distillation(args: argparse.Namespace) -> None:
         apply_perturb=True,
     )
     print(
-        "[Final Test] clean_task: acc={:.4f}, f1={:.4f}, bca={:.4f}, eer={:.4f} | "
-        "clean_uid: acc={:.4f}, f1={:.4f}, bca={:.4f}, eer={:.4f} | "
-        "perturbed_task: acc={:.4f}, f1={:.4f}, bca={:.4f}, eer={:.4f} | "
+        "[Final Test] perturbed_task: acc={:.4f}, f1={:.4f}, bca={:.4f}, eer={:.4f} | "
         "perturbed_uid: acc={:.4f}, f1={:.4f}, bca={:.4f}, eer={:.4f}".format(
-            clean_task_acc,
-            clean_task_f1,
-            clean_task_bca,
-            clean_task_eer,
-            clean_uid_acc,
-            clean_uid_f1,
-            clean_uid_bca,
-            clean_uid_eer,
             test_task_acc,
             test_task_f1,
             test_task_bca,
@@ -434,8 +370,6 @@ def train_distillation(args: argparse.Namespace) -> None:
     return {
         "teacher_clean": teacher_clean_metrics,
         "uid_teacher_clean": uid_clean_metrics,
-        "clean_task": (clean_task_acc, clean_task_f1, clean_task_bca, clean_task_eer),
-        "clean_uid": (clean_uid_acc, clean_uid_f1, clean_uid_bca, clean_uid_eer),
         "perturbed_task": (test_task_acc, test_task_f1, test_task_bca, test_task_eer),
         "perturbed_uid": (test_uid_acc, test_uid_f1, test_uid_bca, test_uid_eer),
     }
@@ -513,7 +447,9 @@ def summarize_results(results: np.ndarray, seeds: List[int], prefix: str) -> Non
     )
 
 
-def save_results_csv(results: np.ndarray, args, prefix: str, seeds: List[int]) -> None:
+def save_results_csv(
+    results: np.ndarray, args, prefix: str, seeds: List[int], eot_tag: str
+) -> None:
     final_results = np.vstack([results, np.mean(results, axis=0), np.std(results, axis=0)])
     df = pd.DataFrame(
         final_results,
@@ -522,7 +458,7 @@ def save_results_csv(results: np.ndarray, args, prefix: str, seeds: List[int]) -
     ).round(4)
     csv_path = args.csv_root / f"{args.dataset}"
     os.makedirs(csv_path, exist_ok=True)
-    df.to_csv(csv_path / f"Distill_{prefix}_{args.task_model}.csv")
+    df.to_csv(csv_path / f"Distill_{prefix}_{args.task_model}_{eot_tag}.csv")
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
@@ -578,14 +514,14 @@ def main():
     seeds = list(range(args.seed, args.seed + args.repeats))
     task_results = np.zeros((len(seeds), 4))
     uid_results = np.zeros((len(seeds), 4))
-    clean_task_results = np.zeros((len(seeds), 4))
-    clean_uid_results = np.zeros((len(seeds), 4))
+
+    eot_tag = describe_eot(args)
 
     for idx, seed in enumerate(seeds):
         args.seed = seed
         set_seed(seed)
 
-        log_path = args.log_root / f"Distill_{args.dataset}_{args.task_model}.log"
+        log_path = args.log_root / f"Distill_{args.dataset}_{args.task_model}_{eot_tag}.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
         sys.stdout = Logger(log_path)
 
@@ -601,17 +537,14 @@ def main():
         print(f"lambda task : {args.lambda_task}")
         print(f"lambda uid  : {args.lambda_uid}")
         print(f"lambda reg  : {args.lambda_reg}")
+        print(f"eot tag     : {eot_tag}")
 
         metrics = train_distillation(args)
         pert_task = metrics["perturbed_task"]
         pert_uid = metrics["perturbed_uid"]
-        clean_task = metrics["clean_task"]
-        clean_uid = metrics["clean_uid"]
 
         task_results[idx] = pert_task
         uid_results[idx] = pert_uid
-        clean_task_results[idx] = clean_task
-        clean_uid_results[idx] = clean_uid
 
         print(f"Seed {seed} finished. Time used: {time.time() - start_time:.2f}s")
         sys.stdout = sys.__stdout__
@@ -619,10 +552,8 @@ def main():
 
     summarize_results(task_results, seeds, "Distill Perturbed Task")
     summarize_results(uid_results, seeds, "Distill Perturbed UID")
-    save_results_csv(task_results, args, "Distill_TaskPerturbed", seeds)
-    save_results_csv(uid_results, args, "Distill_UIDPerturbed", seeds)
-    save_results_csv(clean_task_results, args, "Distill_TaskClean", seeds)
-    save_results_csv(clean_uid_results, args, "Distill_UIDClean", seeds)
+    save_results_csv(task_results, args, "Distill_TaskPerturbed", seeds, eot_tag)
+    save_results_csv(uid_results, args, "Distill_UIDPerturbed", seeds, eot_tag)
     print("All seeds finished.")
 
 
