@@ -6,7 +6,7 @@ import sys
 import time
 from copy import deepcopy
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -18,175 +18,43 @@ from torch import Tensor
 from tqdm import tqdm
 
 from evaluate import calculate_metrics
+from Distill import EOTDistribution, IdentityTransform, STFTDeltaPerturber, kl_pq, uniform_kl
 from utils.Logging import Logger
 from utils.dataset import set_seed
 from utils.init_all import load_all, load_data, set_args
 from utils.models import LoadModel
 
 
-class FrequencyDomainPerturber(nn.Module):
-    """Learnable frequency-domain magnitude perturbation template.
 
-    Supports **class-wise templates** so each UID shares the same perturbation.
-    """
+def build_eot_distribution(args: argparse.Namespace) -> Optional[EOTDistribution]:
+    """Construct the shared EOT distribution used by both distillation and evaluation."""
 
-    def __init__(
-        self,
-        channels: int,
-        n_fft: int = 256,
-        hop_length: Optional[int] = None,
-        epsilon: float = 0.05,
-        mask: Optional[Tensor] = None,
-        device: Optional[torch.device] = None,
-        *,
-        num_uid_classes: int,
-    ) -> None:
-        super().__init__()
-        self.channels = channels
-        self.n_fft = n_fft
-        self.hop_length = hop_length or n_fft // 4
-        self.epsilon = epsilon
-        self.device = device or torch.device("cpu")
-        if num_uid_classes is None or num_uid_classes <= 0:
-            raise ValueError("Class-wise perturbation requires a positive num_uid_classes.")
-        self.num_uid_classes = num_uid_classes
+    enabled = any(
+        [
+            args.enable_eot_shift and args.eot_shift > 0,
+            args.enable_eot_scale and args.eot_scale,
+            args.enable_eot_channel_dropout and args.eot_channel_dropout > 0,
+            args.enable_eot_resample and args.eot_resample > 0,
+        ]
+    )
+    if not enabled:
+        return None
 
-        self.register_buffer("window", torch.hann_window(self.n_fft, device=self.device))
-        n_freq = n_fft // 2 + 1
-        delta_shape = (self.num_uid_classes, channels, n_freq, 1)
-        delta = torch.zeros(delta_shape, device=self.device)
-        self.delta = nn.Parameter(delta)
-
-        mask_shape = (1, channels, n_freq, 1)
-        if mask is not None:
-            self.register_buffer("mask", mask)
-        else:
-            self.register_buffer("mask", torch.ones(mask_shape, device=self.device))
-
-    def forward(
-        self,
-        x: Tensor,
-        uid_labels: Optional[Tensor] = None,
-        transform: Optional[Callable[[Tensor], Tensor]] = None,
-    ) -> Tensor:
-        """Apply the learnable perturbation in the STFT magnitude domain.
-
-        Args:
-            x: EEG batch of shape ``(B, 1, C, T)``.
-            uid_labels: Required when ``classwise=True``; UID indices for each sample.
-            transform: Optional callable for EOT; applied before STFT on shape ``(B, C, T)``.
-        """
-
-        if x.dim() != 4 or x.size(1) != 1:
-            raise ValueError(f"Expected input shape (B,1,C,T), got {tuple(x.shape)}")
-        if uid_labels is None:
-            raise ValueError("uid_labels must be provided for class-wise perturbation.")
-
-        batch, _, channels, time_steps = x.shape
-        x_bar = x.squeeze(1)
-        if transform is not None:
-            x_bar = transform(x_bar)
-
-        flat = x_bar.reshape(batch * channels, time_steps)
-        stft = torch.stft(
-            flat,
-            n_fft=self.n_fft,
-            hop_length=self.hop_length,
-            window=self.window,
-            return_complex=True,
-        )
-        stft = stft.reshape(batch, channels, stft.size(-2), stft.size(-1))
-
-        amplitude = torch.abs(stft)
-        phase = torch.angle(stft)
-
-        delta_tanh = torch.tanh(self.delta) * self.epsilon
-        delta_selected = delta_tanh[uid_labels.long()]  # (B, C, F, 1)
-        masked_delta = self.mask * delta_selected
-        updated_amplitude = torch.relu(amplitude + masked_delta)
-
-        modified = torch.polar(updated_amplitude, phase)
-        modified_flat = modified.reshape(batch * channels, modified.size(-2), modified.size(-1))
-        x_rec = torch.istft(
-            modified_flat,
-            n_fft=self.n_fft,
-            hop_length=self.hop_length,
-            window=self.window,
-            length=time_steps,
-        )
-        x_rec = x_rec.reshape(batch, channels, time_steps)
-        return x_rec.unsqueeze(1)
-
-    @property
-    def delta_regularizer(self) -> Tensor:
-        delta_tanh = torch.tanh(self.delta) * self.epsilon
-        return torch.sum(delta_tanh ** 2)
-
-
-def _random_shift(x: Tensor, max_shift: int) -> Tensor:
-    if max_shift <= 0:
-        return x
-    shift = torch.randint(-max_shift, max_shift + 1, (1,), device=x.device).item()
-    if shift == 0:
-        return x
-    return torch.roll(x, shifts=shift, dims=-1)
-
-
-def _random_scale(x: Tensor, low: float = 0.9, high: float = 1.1) -> Tensor:
-    scale = torch.empty(1, device=x.device).uniform_(low, high)
-    return x * scale
-
-
-def _channel_dropout(x: Tensor, drop_prob: float = 0.1) -> Tensor:
-    if drop_prob <= 0:
-        return x
-    if x.dim() < 2:
-        return x
-    # Create channel mask and broadcast across remaining dims (e.g., time)
-    broadcast_shape = (x.size(0), x.size(1), *([1] * (x.dim() - 2)))
-    mask = torch.ones(broadcast_shape, device=x.device)
-    dropout_mask = torch.bernoulli((1 - drop_prob) * mask)
-    return x * dropout_mask
-
-
-def _resample_jitter(x: Tensor, max_rate_delta: float = 0.05) -> Tensor:
-    if max_rate_delta <= 0:
-        return x
-    batch, channels, time_steps = x.shape
-    rate = 1.0 + float(torch.empty(1, device=x.device).uniform_(-max_rate_delta, max_rate_delta))
-    new_length = max(1, int(math.ceil(time_steps * rate)))
-    flat = x.reshape(batch * channels, 1, time_steps)  # (B*C, 1, T)
-    up = F.interpolate(flat, size=new_length, mode="linear", align_corners=False)
-    back = F.interpolate(up, size=time_steps, mode="linear", align_corners=False)
-    return back.reshape(batch, channels, time_steps)
-
-
-def build_eot_transform(args: argparse.Namespace) -> Callable[[Tensor], Tensor]:
-    """Build an EOT transform with per-augmentation toggles and probabilities."""
-
-    steps: list[tuple[Callable[[Tensor], Tensor], float]] = []
-    if args.enable_eot_shift and args.eot_shift > 0:
-        steps.append((lambda t: _random_shift(t, args.eot_shift), args.eot_shift_prob))
-    if args.enable_eot_scale and args.eot_scale:
-        steps.append((lambda t: _random_scale(t, args.eot_scale_min, args.eot_scale_max), args.eot_scale_prob))
-    if args.enable_eot_channel_dropout and args.eot_channel_dropout > 0:
-        steps.append((lambda t: _channel_dropout(t, args.eot_channel_dropout), args.eot_channel_dropout_prob))
-    if args.enable_eot_resample and args.eot_resample > 0:
-        steps.append((lambda t: _resample_jitter(t, args.eot_resample), args.eot_resample_prob))
-
-    def apply_all(signal: Tensor) -> Tensor:
-        out = signal
-        for fn, prob in steps:
-            if prob <= 0:
-                continue
-            if prob >= 1.0 or torch.rand(1, device=signal.device).item() < prob:
-                out = fn(out)
-        return out
-
-    return apply_all
-
-
-
+    return EOTDistribution(
+        enable_shift=args.enable_eot_shift,
+        max_shift=args.eot_shift,
+        shift_prob=args.eot_shift_prob,
+        enable_scale=args.enable_eot_scale,
+        scale_low=args.eot_scale_min,
+        scale_high=args.eot_scale_max,
+        scale_prob=args.eot_scale_prob,
+        enable_channel_dropout=args.enable_eot_channel_dropout,
+        channel_dropout=args.eot_channel_dropout,
+        channel_dropout_prob=args.eot_channel_dropout_prob,
+        enable_resample=args.enable_eot_resample,
+        resample_max_rate_delta=args.eot_resample,
+        resample_prob=args.eot_resample_prob,
+    )
 
 def _prepare_teacher(args: argparse.Namespace) -> Tuple[nn.Module, torch.device]:
     teacher_args = deepcopy(args)
@@ -221,14 +89,6 @@ def _prepare_uid_adv(args: argparse.Namespace, device: torch.device) -> nn.Modul
     for p in model.parameters():
         p.requires_grad_(False)
     return model
-
-
-def _compute_uniform_kl(p: Tensor) -> Tensor:
-    num_classes = p.size(-1)
-    uniform = torch.full_like(p, 1.0 / num_classes)
-    return F.kl_div(torch.log(p + 1e-8), uniform, reduction="batchmean")
-
-
 def _build_uid_maps_aligned(args: argparse.Namespace) -> Tuple[dict[int, int], dict[int, int], dict[int, int]]:
     """Build UID label maps aligned to the task splits (train/val/test).
 
@@ -289,7 +149,7 @@ def _gather_uid_labels(indices: Tensor, mapping: dict[int, int], device: torch.d
 def train_distillation(args: argparse.Namespace) -> None:
     set_seed(args.seed)
     args = set_args(args)
-    eot_transform = build_eot_transform(args)
+    eot_distribution = build_eot_distribution(args)
 
     teacher, device = _prepare_teacher(args)
 
@@ -303,14 +163,15 @@ def train_distillation(args: argparse.Namespace) -> None:
 
     sample_x = next(iter(trainloader_task))[0]
     channels = sample_x.shape[2]
+    time_steps = sample_x.shape[3]
 
-    perturber = FrequencyDomainPerturber(
+    perturber = STFTDeltaPerturber(
         channels=channels,
+        time_steps=time_steps,
         n_fft=args.n_fft,
         hop_length=args.hop_length,
-        epsilon=args.epsilon_a,
+        epsilon_delta=args.epsilon_a,
         device=device,
-        num_uid_classes=uid_args.nclass,
     ).to(device)
 
     optimizer = torch.optim.Adam([perturber.delta], lr=args.lr)
@@ -322,25 +183,30 @@ def train_distillation(args: argparse.Namespace) -> None:
             x, y_task, indices = batch
             x = x.to(device)
             y_task = y_task.to(device)
-            uid_labels = _gather_uid_labels(indices, train_uid_map, device)
+            if eot_distribution is None:
+                transform = IdentityTransform()
+            else:
+                transform = eot_distribution.sample(device=device)
 
-            x_bar = x.squeeze(1)
+            x_t_bar = transform.apply(x.squeeze(1))
+            x_t = x_t_bar.unsqueeze(1)
+
             with torch.no_grad():
-                x_eot = eot_transform(x_bar)
-                teacher_logits = teacher(x_eot.unsqueeze(1))
-                teacher_prob = F.softmax(teacher_logits, dim=1)
+                teacher_prob = F.softmax(teacher(x_t), dim=1)
 
-            x_prime = perturber(x, uid_labels=uid_labels, transform=lambda _: x_eot)
-            teacher_logits_prime = teacher(x_prime)
+            x_prime = perturber(x_t)
+            x_prime_t = transform.apply(x_prime.squeeze(1)).unsqueeze(1)
+
+            teacher_logits_prime = teacher(x_prime_t)
             teacher_prob_prime = F.softmax(teacher_logits_prime, dim=1)
 
-            uid_logits_prime = uid_adv(x_prime)
+            uid_logits_prime = uid_adv(x_prime_t)
             uid_prob_prime = F.softmax(uid_logits_prime, dim=1)
 
-            kl_task = F.kl_div(torch.log(teacher_prob_prime + 1e-8), teacher_prob, reduction="batchmean")
+            kl_task = kl_pq(teacher_prob, teacher_prob_prime, reduction="batchmean")
             ce_task = F.cross_entropy(teacher_logits_prime, y_task.long())
-            kl_uid = _compute_uniform_kl(uid_prob_prime)
-            reg = perturber.delta_regularizer
+            kl_uid = uniform_kl(uid_prob_prime, uid_args.nclass, reduction="batchmean")
+            reg = perturber.l2_regularizer()
 
             loss = (
                 args.lambda_task * kl_task
@@ -352,6 +218,8 @@ def train_distillation(args: argparse.Namespace) -> None:
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+
+            perturber.clip_()
 
             running_loss += loss.item()
 
@@ -375,7 +243,7 @@ def train_distillation(args: argparse.Namespace) -> None:
                 uid_adv,
                 valloader_task,
                 val_uid_map,
-                eot_transform,
+                eot_distribution,
                 device,
                 apply_perturb=True,
             )
@@ -399,7 +267,7 @@ def train_distillation(args: argparse.Namespace) -> None:
         uid_adv,
         testloader_task,
         test_uid_map,
-        eot_transform,
+        eot_distribution,
         device,
         apply_perturb=False,
     )
@@ -409,7 +277,7 @@ def train_distillation(args: argparse.Namespace) -> None:
         uid_adv,
         testloader_task,
         test_uid_map,
-        eot_transform,
+        eot_distribution,
         device,
         apply_perturb=True,
     )
@@ -446,12 +314,12 @@ def train_distillation(args: argparse.Namespace) -> None:
 
 @torch.no_grad()
 def evaluate_metrics(
-    perturber: FrequencyDomainPerturber,
+    perturber: STFTDeltaPerturber,
     teacher: nn.Module,
     uid_adv: nn.Module,
     dataloader,
     uid_map: dict[int, int],
-    eot_transform: Callable[[Tensor], Tensor],
+    eot_distribution: Optional[EOTDistribution],
     device: torch.device,
     apply_perturb: bool,
 ) -> Tuple[float, float, float, float, float, float, float, float]:
@@ -465,9 +333,15 @@ def evaluate_metrics(
         uid_labels = _gather_uid_labels(indices, uid_map, device)
 
         if apply_perturb:
-            x_bar = x.squeeze(1)
-            x_eot = eot_transform(x_bar)
-            x_eval = perturber(x, uid_labels=uid_labels, transform=lambda _: x_eot)
+            if eot_distribution is None:
+                transform = IdentityTransform()
+            else:
+                transform = eot_distribution.sample(device=device)
+
+            x_t_bar = transform.apply(x.squeeze(1))
+            x_t = x_t_bar.unsqueeze(1)
+            x_prime = perturber(x_t)
+            x_eval = transform.apply(x_prime.squeeze(1)).unsqueeze(1)
         else:
             x_eval = x
 
