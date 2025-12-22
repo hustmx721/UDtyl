@@ -184,10 +184,13 @@ def load_data(args: argparse.ArgumentParser, include_index: bool = False):
         pin_memory=getattr(args, "gpu_prefetch_pin_memory", False) or getattr(args, "gpu_prefetch", False),
         non_blocking=getattr(args, "gpu_prefetch_non_blocking", False) or getattr(args, "gpu_prefetch", False),
     )
+    batch_size = getattr(args, "bs", 64)
+
     if args.dataset in OpenBMI:
         trainloader, valloader, testloader = GetLoaderOpenBMI(
             args.seed,
             Task=args.dataset,
+            batchsize=batch_size,
             is_task=args.is_task,
             **loader_kwargs,
         )
@@ -195,6 +198,7 @@ def load_data(args: argparse.ArgumentParser, include_index: bool = False):
         trainloader, valloader, testloader = GetLoaderM3CV(
             args.seed,
             Task=args.dataset,
+            batchsize=batch_size,
             is_task=args.is_task,
             **loader_kwargs,
         )

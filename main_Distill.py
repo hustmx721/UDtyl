@@ -17,12 +17,12 @@ from sklearn.model_selection import train_test_split
 from torch import Tensor
 from tqdm import tqdm
 
-from evaluate import calculate_metrics
 from Distill import EOTDistribution, IdentityTransform, STFTDeltaPerturber, kl_pq, uniform_kl
+from evaluate import calculate_metrics, evaluate
+from train import train_one_epoch
 from utils.Logging import Logger
 from utils.dataset import set_seed
 from utils.init_all import load_all, load_data, set_args
-from utils.models import LoadModel
 
 
 
@@ -52,39 +52,168 @@ def build_eot_distribution(args: argparse.Namespace) -> Optional[EOTDistribution
         resample_prob=args.eot_resample_prob,
     )
 
-def _prepare_teacher(args: argparse.Namespace) -> Tuple[nn.Module, torch.device]:
-    teacher_args = deepcopy(args)
-    teacher_args.is_task = True
-    teacher_args.model = args.task_model
-    teacher_args = set_args(teacher_args)
-    model, _, device = load_all(teacher_args)
-    if args.task_checkpoint and Path(args.task_checkpoint).is_file():
-        state = torch.load(args.task_checkpoint, map_location=device)
+def _resolve_checkpoint_path(
+    args: argparse.Namespace, provided: str, prefix: str, model_name: str
+) -> Path:
+    if provided:
+        return Path(provided)
+    default_dir = Path(args.model_root) / "Distill_Pretrain_Task"
+    default_dir.mkdir(parents=True, exist_ok=True)
+    return default_dir / f"{prefix}_{model_name}_seed{args.seed}.pth"
+
+
+def _resolve_metrics_path(args: argparse.Namespace, prefix: str, model_name: str) -> Path:
+    csv_dir = Path(args.csv_root) / "Distill_Pretrain_Task"
+    csv_dir.mkdir(parents=True, exist_ok=True)
+    return csv_dir / f"{prefix}_Clean_{model_name}.csv"
+
+
+def _save_teacher_metrics(
+    metrics_path: Path, metrics: Tuple[float, float, float, float], seed: int
+) -> None:
+    df_new = pd.DataFrame(
+        [metrics], columns=["Acc", "F1", "BCA", "EER"], index=[str(seed)]
+    ).round(4)
+    if metrics_path.exists():
+        df = pd.read_csv(metrics_path, index_col=0)
+        df.loc[str(seed)] = df_new.iloc[0]
+    else:
+        df = df_new
+    df.to_csv(metrics_path)
+    print(f"Teacher clean metrics saved to {metrics_path}")
+
+
+def _train_teacher_from_scratch(
+    args: argparse.Namespace,
+    model: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    device: torch.device,
+    checkpoint_path: Path,
+    metrics_path: Path,
+    prefix: str,
+) -> Tuple[nn.Module, Tuple[float, float, float, float]]:
+    print(f"No {prefix} checkpoint provided. Training model from scratch...")
+    trainloader, valloader, testloader = load_data(args, include_index=False)
+
+    clf_loss_func = nn.CrossEntropyLoss().to(device)
+    best_state = deepcopy(model.state_dict())
+    best_val_acc = -float("inf")
+    epochs_since_improve = 0
+
+    for epoch in range(args.teacher_epochs):
+        train_loss, train_acc, train_f1, train_bca, train_eer = train_one_epoch(
+            model=model,
+            dataloader=trainloader,
+            device=device,
+            optimizer=optimizer,
+            clf_loss_func=clf_loss_func,
+        )
+        val_loss, val_acc, val_f1, val_bca, val_eer = evaluate(
+            model=model, dataloader=valloader, args=args, device=device
+        )
+
+        print(
+            f"[Teacher][Epoch {epoch + 1}] Train loss={train_loss:.6f}, Acc={train_acc:.4f}, F1={train_f1:.4f}, BCA={train_bca:.4f}, EER={train_eer:.4f} | "
+            f"Val loss={val_loss:.6f}, Acc={val_acc:.4f}, F1={val_f1:.4f}, BCA={val_bca:.4f}, EER={val_eer:.4f}"
+        )
+
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            best_state = deepcopy(model.state_dict())
+            epochs_since_improve = 0
+            torch.save(best_state, checkpoint_path)
+            print(f"Updated best {prefix} checkpoint -> {checkpoint_path}")
+        else:
+            epochs_since_improve += 1
+
+        if epochs_since_improve > args.teacher_earlystop:
+            print(f"Teacher early stopping at epoch {epoch + 1} (no val improvement for {epochs_since_improve} epochs)")
+            break
+
+    model.load_state_dict(best_state)
+    _, test_acc, test_f1, test_bca, test_eer = evaluate(
+        model=model, dataloader=testloader, args=args, device=device
+    )
+    clean_metrics = (test_acc, test_f1, test_bca, test_eer)
+    print(
+        "[Teacher][Clean Test] Acc={:.4f}, F1={:.4f}, BCA={:.4f}, EER={:.4f}".format(
+            test_acc, test_f1, test_bca, test_eer
+        )
+    )
+    _save_teacher_metrics(metrics_path, clean_metrics, args.seed)
+    return model, clean_metrics
+
+
+def _prepare_supervised_model(
+    args: argparse.Namespace,
+    model_name: str,
+    is_task: bool,
+    checkpoint: str,
+    prefix: str,
+) -> Tuple[nn.Module, torch.device, Tuple[float, float, float, float]]:
+    model_args = deepcopy(args)
+    model_args.is_task = is_task
+    model_args.model = model_name
+    model_args = set_args(model_args)
+    model, optimizer, device = load_all(model_args)
+
+    checkpoint_path = _resolve_checkpoint_path(model_args, checkpoint, prefix, model_name)
+    metrics_path = _resolve_metrics_path(model_args, prefix, model_name)
+
+    if checkpoint and Path(checkpoint).is_file():
+        state = torch.load(checkpoint, map_location=device)
         model.load_state_dict(state)
+        print(f"Loaded {prefix} checkpoint from {checkpoint}")
+    elif checkpoint_path.is_file():
+        state = torch.load(checkpoint_path, map_location=device)
+        model.load_state_dict(state)
+        print(f"Loaded {prefix} checkpoint from {checkpoint_path}")
+    else:
+        model, clean_metrics = _train_teacher_from_scratch(
+            model_args, model, optimizer, device, checkpoint_path, metrics_path, prefix
+        )
+        model.eval()
+        for p in model.parameters():
+            p.requires_grad_(False)
+        return model, device, clean_metrics
+
     model.eval()
     for p in model.parameters():
         p.requires_grad_(False)
-    return model, device
+
+    _, _, testloader = load_data(model_args, include_index=False)
+    _, test_acc, test_f1, test_bca, test_eer = evaluate(
+        model=model, dataloader=testloader, args=model_args, device=device
+    )
+    clean_metrics = (test_acc, test_f1, test_bca, test_eer)
+    print(
+        f"[{prefix}][Clean Test] Acc={test_acc:.4f}, F1={test_f1:.4f}, BCA={test_bca:.4f}, EER={test_eer:.4f}"
+    )
+    _save_teacher_metrics(metrics_path, clean_metrics, model_args.seed)
+    return model, device, clean_metrics
 
 
-def _prepare_uid_adv(args: argparse.Namespace, device: torch.device) -> nn.Module:
-    uid_args = deepcopy(args)
-    uid_args.is_task = False
-    uid_args.model = args.uid_model
-    uid_args = set_args(uid_args)
-    model = LoadModel(
-        model_name=uid_args.model,
-        Chans=uid_args.channel,
-        Samples=int(uid_args.fs * uid_args.timepoint),
-        n_classes=uid_args.nclass,
-    ).to(device)
-    if args.uid_checkpoint and Path(args.uid_checkpoint).is_file():
-        state = torch.load(args.uid_checkpoint, map_location=device)
-        model.load_state_dict(state)
-    model.eval()
-    for p in model.parameters():
-        p.requires_grad_(False)
-    return model
+def _prepare_teacher(args: argparse.Namespace) -> Tuple[nn.Module, torch.device, Tuple[float, float, float, float]]:
+    return _prepare_supervised_model(
+        args=args,
+        model_name=args.task_model,
+        is_task=True,
+        checkpoint=args.task_checkpoint,
+        prefix="Task_Teacher",
+    )
+
+
+def _prepare_uid_adv(args: argparse.Namespace, device: torch.device) -> Tuple[nn.Module, Tuple[float, float, float, float]]:
+    model, _, metrics = _prepare_supervised_model(
+        args=args,
+        model_name=args.uid_model,
+        is_task=False,
+        checkpoint=args.uid_checkpoint,
+        prefix="UID_Teacher",
+    )
+    # Ensure UID model on the provided device
+    model = model.to(device)
+    return model, metrics
 
 
 def _build_uid_maps_aligned(args: argparse.Namespace) -> Tuple[dict[int, int], dict[int, int], dict[int, int]]:
@@ -149,12 +278,12 @@ def train_distillation(args: argparse.Namespace) -> None:
     args = set_args(args)
     eot_distribution = build_eot_distribution(args)
 
-    teacher, device = _prepare_teacher(args)
+    teacher, device, teacher_clean_metrics = _prepare_teacher(args)
 
     uid_args = deepcopy(args)
     uid_args.is_task = False
     uid_args = set_args(uid_args)
-    uid_adv = _prepare_uid_adv(uid_args, device)
+    uid_adv, uid_clean_metrics = _prepare_uid_adv(uid_args, device)
 
     trainloader_task, valloader_task, testloader_task = load_data(args, include_index=True)
     train_uid_map, val_uid_map, test_uid_map = _build_uid_maps_aligned(args)
@@ -303,6 +432,8 @@ def train_distillation(args: argparse.Namespace) -> None:
         )
     )
     return {
+        "teacher_clean": teacher_clean_metrics,
+        "uid_teacher_clean": uid_clean_metrics,
         "clean_task": (clean_task_acc, clean_task_f1, clean_task_bca, clean_task_eer),
         "clean_uid": (clean_uid_acc, clean_uid_f1, clean_uid_bca, clean_uid_eer),
         "perturbed_task": (test_task_acc, test_task_f1, test_task_bca, test_task_eer),
@@ -399,6 +530,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--gpuid", type=int, default=0)
     parser.add_argument("--initlr", type=float, default=1e-3)
+    parser.add_argument("--bs", type=int, default=64)
     parser.add_argument("--channel", type=int, default=22)
     parser.add_argument("--timepoint", type=float, default=4.0)
     parser.add_argument("--fs", type=int, default=250)
@@ -407,7 +539,10 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--uid_model", type=str, default="EEGNet")
     parser.add_argument("--task_checkpoint", type=str, default="", help="Pretrained task teacher checkpoint")
     parser.add_argument("--uid_checkpoint", type=str, default="", help="Pretrained UID adversary checkpoint")
+    parser.add_argument("--model_root", type=Path, default=Path("ModelSave"), help="Where to store trained teacher checkpoints")
     parser.add_argument("--seed", type=int, default=2024)
+    parser.add_argument("--teacher_epochs", type=int, default=300, help="Max epochs when training teacher from scratch")
+    parser.add_argument("--teacher_earlystop", type=int, default=30, help="Early-stop patience for teacher training")
     parser.add_argument("--n_fft", type=int, default=256)
     parser.add_argument("--hop_length", type=int, default=None)
     parser.add_argument("--epsilon_a", type=float, default=0.05)
