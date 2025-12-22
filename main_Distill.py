@@ -462,6 +462,12 @@ def save_results_csv(
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
+    project_root = Path(__file__).resolve().parent.parent
+    default_log_root = project_root / "logs"
+    default_model_root = project_root / "ModelSave"
+    default_csv_root = project_root / "csv"
+    default_delta_root = project_root / "ModelSave" / "Distilllation_Delta"
+    
     parser = argparse.ArgumentParser(description="Frequency-domain privacy distillation training")
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--gpuid", type=int, default=0)
@@ -475,7 +481,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--uid_model", type=str, default="EEGNet")
     parser.add_argument("--task_checkpoint", type=str, default="", help="Pretrained task teacher checkpoint")
     parser.add_argument("--uid_checkpoint", type=str, default="", help="Pretrained UID adversary checkpoint")
-    parser.add_argument("--model_root", type=Path, default=Path("ModelSave"), help="Where to store trained teacher checkpoints")
+    parser.add_argument("--model_root", type=Path, default=default_model_root, help="Where to store trained teacher checkpoints")
     parser.add_argument("--seed", type=int, default=2024)
     parser.add_argument("--teacher_epochs", type=int, default=300, help="Max epochs when training teacher from scratch")
     parser.add_argument("--teacher_earlystop", type=int, default=30, help="Early-stop patience for teacher training")
@@ -483,13 +489,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--hop_length", type=int, default=None)
     parser.add_argument("--epsilon_a", type=float, default=0.05)
     parser.add_argument("--lambda_task", type=float, default=1.0)
-    parser.add_argument("--lambda_ce", type=float, default=0.1)
     parser.add_argument("--lambda_uid", type=float, default=2.0)
     parser.add_argument("--lambda_reg", type=float, default=1e-4)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--val_interval", type=int, default=5)
-    parser.add_argument("--save_delta", type=str, default="", help="Path to save the perturbation template")
+    parser.add_argument("--save_delta", type=str, default=default_delta_root, help="Path to save the perturbation template")
     parser.add_argument("--eot_shift", type=int, default=16)
     parser.add_argument("--eot_scale", action="store_true", help="Enable amplitude scaling transform")
     parser.add_argument("--eot_scale_min", type=float, default=0.9)
@@ -501,16 +506,16 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--eot_channel_dropout_prob", type=float, default=1.0, help="Probability to apply channel dropout")
     parser.add_argument("--eot_resample_prob", type=float, default=1.0, help="Probability to apply resampling jitter")
     parser.add_argument("--repeats", type=int, default=5, help="Number of seeds to run")
-    parser.add_argument("--log_root", type=Path, default=Path("logs"))
+    parser.add_argument("--log_root", type=Path, default=default_log_root)
     parser.add_argument("--is_task", type=bool, default=True)
-    parser.add_argument("--csv_root", type=Path, default=Path("csv"), help="Directory to store CSV results")
+    parser.add_argument("--csv_root", type=Path, default=default_csv_root, help="Directory to store CSV results")
     return parser
 
 
 def main():
     parser = build_argument_parser()
     args = parser.parse_args()
-
+    
     seeds = list(range(args.seed, args.seed + args.repeats))
     task_results = np.zeros((len(seeds), 4))
     uid_results = np.zeros((len(seeds), 4))
