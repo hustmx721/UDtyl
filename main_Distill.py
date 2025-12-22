@@ -85,6 +85,8 @@ def _prepare_uid_adv(args: argparse.Namespace, device: torch.device) -> nn.Modul
     for p in model.parameters():
         p.requires_grad_(False)
     return model
+
+
 def _build_uid_maps_aligned(args: argparse.Namespace) -> Tuple[dict[int, int], dict[int, int], dict[int, int]]:
     """Build UID label maps aligned to the task splits (train/val/test).
 

@@ -1,4 +1,4 @@
-"""Distill-STFT-UD (Simple Version A, M=1)
+"""Distill-STFT-UD 
 
 Implements the algorithm you provided:
 - Only \Delta is learnable.
@@ -13,10 +13,9 @@ This is a **self-contained** reference implementation (PyTorch only) designed fo
 - reproducibility (deterministic EOT transform objects),
 - easy integration into an existing training pipeline.
 
-Author: ChatGPT (GPT-5.2 Thinking)
 """
 
-from __future__ import annotations
+from __future__ import annotations 
 
 import math
 from dataclasses import dataclass
@@ -374,7 +373,7 @@ def optimize_delta(
     epochs: int,
     eot: Optional[EOTDistribution] = None,
     device: Optional[torch.device] = None,
-    log_every: int = 50,
+    log_every: int = 10,
 ) -> None:
     """Stage-1 optimizer: update \Delta only.
 
@@ -476,21 +475,6 @@ def protect_batch(
 # 5) Lightweight unit tests
 # ---------------------------
 
-class _TinyNet(nn.Module):
-    def __init__(self, channels: int, time_steps: int, num_classes: int):
-        super().__init__()
-        self.conv = nn.Conv2d(1, 8, kernel_size=(channels, 9), padding=(0, 4))
-        self.pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(8, num_classes)
-
-    def forward(self, x: Tensor) -> Tensor:
-        # x: (B,1,C,T)
-        z = self.conv(x)  # (B,8,1,T)
-        z = F.relu(z)
-        z = self.pool(z).squeeze(-1).squeeze(-1)  # (B,8)
-        return self.fc(z)
-
-
 def _make_sine_batch(B: int, C: int, T: int, device: torch.device) -> Tensor:
     t = torch.linspace(0, 1, T, device=device)
     xs = []
@@ -568,5 +552,5 @@ def _run_unit_tests() -> None:
     print("All unit tests passed.")
 
 
-if __name__ == "__main__":
-    _run_unit_tests()
+# if __name__ == "__main__":
+#     _run_unit_tests()
