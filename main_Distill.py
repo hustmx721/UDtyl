@@ -57,13 +57,13 @@ def _resolve_checkpoint_path(
 ) -> Path:
     if provided:
         return Path(provided)
-    default_dir = Path(args.model_root) / "Distill_Pretrain_Task"
+    default_dir = Path(args.model_root) / "Distill_Pretrain_"
     default_dir.mkdir(parents=True, exist_ok=True)
     return default_dir / f"{prefix}_{model_name}_seed{args.seed}.pth"
 
 
 def _resolve_metrics_path(args: argparse.Namespace, prefix: str, model_name: str) -> Path:
-    csv_dir = Path(args.csv_root) / "Distill_Pretrain_Task"
+    csv_dir = Path(args.csv_root) / "Distill_Pretrain_"
     csv_dir.mkdir(parents=True, exist_ok=True)
     return csv_dir / f"{prefix}_Clean_{model_name}.csv"
 
