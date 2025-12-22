@@ -31,27 +31,23 @@ def build_eot_distribution(args: argparse.Namespace) -> Optional[EOTDistribution
 
     enabled = any(
         [
-            args.enable_eot_shift and args.eot_shift > 0,
-            args.enable_eot_scale and args.eot_scale,
-            args.enable_eot_channel_dropout and args.eot_channel_dropout > 0,
-            args.enable_eot_resample and args.eot_resample > 0,
+            args.eot_shift_prob > 0 and args.eot_shift > 0,
+            args.eot_scale_prob > 0 and args.eot_scale,
+            args.eot_channel_dropout_prob > 0 and args.eot_channel_dropout > 0,
+            args.eot_resample_prob > 0 and args.eot_resample > 0,
         ]
     )
     if not enabled:
         return None
 
     return EOTDistribution(
-        enable_shift=args.enable_eot_shift,
         max_shift=args.eot_shift,
         shift_prob=args.eot_shift_prob,
-        enable_scale=args.enable_eot_scale,
         scale_low=args.eot_scale_min,
         scale_high=args.eot_scale_max,
         scale_prob=args.eot_scale_prob,
-        enable_channel_dropout=args.enable_eot_channel_dropout,
         channel_dropout=args.eot_channel_dropout,
         channel_dropout_prob=args.eot_channel_dropout_prob,
-        enable_resample=args.enable_eot_resample,
         resample_max_rate_delta=args.eot_resample,
         resample_prob=args.eot_resample_prob,
     )
@@ -427,10 +423,6 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--eot_scale_max", type=float, default=1.1)
     parser.add_argument("--eot_channel_dropout", type=float, default=0.05)
     parser.add_argument("--eot_resample", type=float, default=0.02)
-    parser.add_argument("--enable_eot_shift", action="store_true", default=True)
-    parser.add_argument("--enable_eot_scale", action="store_true", default=True)
-    parser.add_argument("--enable_eot_channel_dropout", action="store_true", default=True)
-    parser.add_argument("--enable_eot_resample", action="store_true", default=True)
     parser.add_argument("--eot_shift_prob", type=float, default=1.0, help="Probability to apply time shift")
     parser.add_argument("--eot_scale_prob", type=float, default=1.0, help="Probability to apply scaling")
     parser.add_argument("--eot_channel_dropout_prob", type=float, default=1.0, help="Probability to apply channel dropout")

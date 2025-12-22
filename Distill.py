@@ -158,31 +158,23 @@ class EOTDistribution:
     def __init__(
         self,
         *,
-        enable_shift: bool = False,
         max_shift: int = 0,
         shift_prob: float = 1.0,
-        enable_scale: bool = False,
         scale_low: float = 0.9,
         scale_high: float = 1.1,
         scale_prob: float = 1.0,
-        enable_channel_dropout: bool = False,
         channel_dropout: float = 0.0,
         channel_dropout_prob: float = 1.0,
-        enable_resample: bool = False,
         resample_max_rate_delta: float = 0.0,
         resample_prob: float = 1.0,
     ) -> None:
-        self.enable_shift = enable_shift
         self.max_shift = int(max_shift)
         self.shift_prob = float(shift_prob)
-        self.enable_scale = enable_scale
         self.scale_low = float(scale_low)
         self.scale_high = float(scale_high)
         self.scale_prob = float(scale_prob)
-        self.enable_channel_dropout = enable_channel_dropout
         self.channel_dropout = float(channel_dropout)
         self.channel_dropout_prob = float(channel_dropout_prob)
-        self.enable_resample = enable_resample
         self.resample_max_rate_delta = float(resample_max_rate_delta)
         self.resample_prob = float(resample_prob)
 
@@ -190,18 +182,18 @@ class EOTDistribution:
         # Compose transforms by nesting (shift then scale).
         t: DeterministicTransform = IdentityTransform()
 
-        if self.enable_shift and self.max_shift > 0 and self._should_apply(self.shift_prob, device):
+        if self.max_shift > 0 and self._should_apply(self.shift_prob, device):
             shift = int(torch.randint(-self.max_shift, self.max_shift + 1, (1,), device=device).item())
             t = _Compose(t, TimeShiftTransform(shift=shift))
 
-        if self.enable_scale and self._should_apply(self.scale_prob, device):
+        if self._should_apply(self.scale_prob, device):
             scale = float(torch.empty(1, device=device).uniform_(self.scale_low, self.scale_high).item())
             t = _Compose(t, ScaleTransform(scale=scale))
 
-        if self.enable_channel_dropout and self.channel_dropout > 0 and self._should_apply(self.channel_dropout_prob, device):
+        if self.channel_dropout > 0 and self._should_apply(self.channel_dropout_prob, device):
             t = _Compose(t, ChannelDropoutTransform(drop_prob=self.channel_dropout))
 
-        if self.enable_resample and self.resample_max_rate_delta > 0 and self._should_apply(self.resample_prob, device):
+        if self.resample_max_rate_delta > 0 and self._should_apply(self.resample_prob, device):
             rate = 1.0 + float(
                 torch.empty(1, device=device).uniform_(-self.resample_max_rate_delta, self.resample_max_rate_delta).item()
             )
