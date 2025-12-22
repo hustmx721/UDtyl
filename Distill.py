@@ -119,6 +119,36 @@ class ScaleTransform(DeterministicTransform):
         return x_bar * self.scale
 
 
+@dataclass
+class ChannelDropoutTransform(DeterministicTransform):
+    drop_prob: float
+    mask: Optional[Tensor] = None
+
+    def apply(self, x_bar: Tensor) -> Tensor:
+        if self.drop_prob <= 0:
+            return x_bar
+        if self.mask is None:
+            broadcast_shape = (x_bar.size(0), x_bar.size(1), *([1] * (x_bar.dim() - 2)))
+            keep = torch.bernoulli((1 - self.drop_prob) * torch.ones(broadcast_shape, device=x_bar.device))
+            self.mask = keep
+        return x_bar * self.mask
+
+
+@dataclass
+class ResampleJitterTransform(DeterministicTransform):
+    rate: float
+
+    def apply(self, x_bar: Tensor) -> Tensor:
+        if math.isclose(self.rate, 1.0):
+            return x_bar
+        batch, channels, time_steps = x_bar.shape
+        new_length = max(1, int(math.ceil(time_steps * self.rate)))
+        flat = x_bar.reshape(batch * channels, 1, time_steps)
+        up = F.interpolate(flat, size=new_length, mode="linear", align_corners=False)
+        back = F.interpolate(up, size=time_steps, mode="linear", align_corners=False)
+        return back.reshape(batch, channels, time_steps)
+
+
 class EOTDistribution:
     """Sample one deterministic transform per batch.
 
@@ -128,31 +158,56 @@ class EOTDistribution:
     def __init__(
         self,
         *,
-        enable_shift: bool = False,
         max_shift: int = 0,
-        enable_scale: bool = False,
+        shift_prob: float = 1.0,
         scale_low: float = 0.9,
         scale_high: float = 1.1,
+        scale_prob: float = 1.0,
+        channel_dropout: float = 0.0,
+        channel_dropout_prob: float = 1.0,
+        resample_max_rate_delta: float = 0.0,
+        resample_prob: float = 1.0,
     ) -> None:
-        self.enable_shift = enable_shift
         self.max_shift = int(max_shift)
-        self.enable_scale = enable_scale
+        self.shift_prob = float(shift_prob)
         self.scale_low = float(scale_low)
         self.scale_high = float(scale_high)
+        self.scale_prob = float(scale_prob)
+        self.channel_dropout = float(channel_dropout)
+        self.channel_dropout_prob = float(channel_dropout_prob)
+        self.resample_max_rate_delta = float(resample_max_rate_delta)
+        self.resample_prob = float(resample_prob)
 
     def sample(self, *, device: torch.device) -> DeterministicTransform:
         # Compose transforms by nesting (shift then scale).
         t: DeterministicTransform = IdentityTransform()
 
-        if self.enable_shift and self.max_shift > 0:
+        if self.max_shift > 0 and self._should_apply(self.shift_prob, device):
             shift = int(torch.randint(-self.max_shift, self.max_shift + 1, (1,), device=device).item())
             t = _Compose(t, TimeShiftTransform(shift=shift))
 
-        if self.enable_scale:
+        if self._should_apply(self.scale_prob, device):
             scale = float(torch.empty(1, device=device).uniform_(self.scale_low, self.scale_high).item())
             t = _Compose(t, ScaleTransform(scale=scale))
 
+        if self.channel_dropout > 0 and self._should_apply(self.channel_dropout_prob, device):
+            t = _Compose(t, ChannelDropoutTransform(drop_prob=self.channel_dropout))
+
+        if self.resample_max_rate_delta > 0 and self._should_apply(self.resample_prob, device):
+            rate = 1.0 + float(
+                torch.empty(1, device=device).uniform_(-self.resample_max_rate_delta, self.resample_max_rate_delta).item()
+            )
+            t = _Compose(t, ResampleJitterTransform(rate=rate))
+
         return t
+
+    @staticmethod
+    def _should_apply(prob: float, device: torch.device) -> bool:
+        if prob >= 1.0:
+            return True
+        if prob <= 0.0:
+            return False
+        return bool(torch.rand(1, device=device) < prob)
 
 
 @dataclass
