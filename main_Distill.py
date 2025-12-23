@@ -95,10 +95,14 @@ def _save_teacher_metrics(
     ).round(4)
     if metrics_path.exists():
         df = pd.read_csv(metrics_path, index_col=0)
+        df = df[~df.index.isin(["Avg", "Std"])]
         df.loc[str(seed)] = df_new.iloc[0]
     else:
         df = df_new
-    df.to_csv(metrics_path)
+    stats = df.astype(float).agg(["mean", "std"]).round(4)
+    stats.index = ["Avg", "Std"]
+    df_with_stats = pd.concat([df, stats])
+    df_with_stats.to_csv(metrics_path)
     print(f"Teacher clean metrics saved to {metrics_path}")
 
 
@@ -346,6 +350,9 @@ def train_distillation(args: argparse.Namespace) -> None:
             save_path = save_dir / f"delta_{args.dataset}_{args.task_model}_{args.eot_tag}_seed{args.seed}.pth"
 
         save_dir.mkdir(parents=True, exist_ok=True)
+        torch.save({"delta": perturber.delta.detach().cpu()}, save_path)
+        print(f"Saved perturbation delta to {save_path}")
+
 
     perturber.eval()
     # Report perturbed accuracies on the held-out test split
@@ -563,7 +570,7 @@ def main():
 
     summarize_results(task_results, seeds, "Distill Perturbed Task")
     summarize_results(uid_results, seeds, "Distill Perturbed UID")
-    save_results_csv(task_results, args, "Distill_TaskPerturbed", seeds, eot_tag)
+    save_results_csv(task_results, args, "TaskPerturbed", seeds, eot_tag)
     save_results_csv(uid_results, args, "Distill_UIDPerturbed", seeds, eot_tag)
     print("All seeds finished.")
 
