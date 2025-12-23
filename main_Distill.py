@@ -76,15 +76,15 @@ def _resolve_checkpoint_path(
 ) -> Path:
     if provided:
         return Path(provided)
-    default_dir = Path(args.model_root) / "Distill_Pretrain_"
+    default_dir = Path(args.model_root) / "Distill_Pretrain"
     default_dir.mkdir(parents=True, exist_ok=True)
-    return default_dir / f"{args.eot_tag}_{prefix}_{model_name}_seed{args.seed}.pth"
+    return default_dir / f"{prefix}_{model_name}_seed{args.seed}.pth"
 
 
 def _resolve_metrics_path(args: argparse.Namespace, prefix: str, model_name: str) -> Path:
-    csv_dir = Path(args.csv_root) / "Distill_Pretrain_"
+    csv_dir = Path(args.csv_root) / "Distill_Pretrain"
     csv_dir.mkdir(parents=True, exist_ok=True)
-    return csv_dir / f"{args.eot_tag}_{prefix}_Clean_{model_name}.csv"
+    return csv_dir / f"{prefix}_Clean_{model_name}.csv"
 
 
 def _save_teacher_metrics(
@@ -350,8 +350,8 @@ def train_distillation(args: argparse.Namespace) -> None:
             save_path = save_dir / f"delta_{args.dataset}_{args.task_model}_{args.eot_tag}_seed{args.seed}.pth"
 
         save_dir.mkdir(parents=True, exist_ok=True)
-        torch.save({"delta": perturber.delta.detach().cpu()}, save_path)
-        print(f"Saved perturbation delta to {save_path}")
+        torch.save({"delta": perturber}, save_path)
+        print(f"Saved the hole stft perturbation to {save_path}")
 
 
     perturber.eval()
@@ -478,7 +478,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     default_log_root = project_root / "logs"
     default_model_root = project_root / "ModelSave"
     default_csv_root = project_root / "csv"
-    default_delta_root = project_root / "ModelSave" / "Distilllation_Delta"
+    default_delta_root = project_root / "ModelSave" / "Distill_Delta"
     
     parser = argparse.ArgumentParser(description="Frequency-domain privacy distillation training")
     parser.add_argument("--dataset", type=str, required=True)

@@ -12,13 +12,15 @@ def log_print(msg):
     print(msg)
 
 class Logger(object):
-    def __init__(self, fpath=None):
+    def __init__(self, fpath=None, mode="a"):
         self.console = sys.stdout
         self.file = None
         if fpath is not None:
             mkdir_if_missing(osp.dirname(fpath))
             try:
-                self.file = open(fpath, 'w')
+                # Use append mode so logs from different runs (e.g., new random seeds)
+                # are preserved instead of overwriting previous results.
+                self.file = open(fpath, mode)
             except IOError as e:
                 print(f"Error opening log file {fpath}: {e}", file=sys.stderr)
                 self.file = None
