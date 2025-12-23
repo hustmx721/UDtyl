@@ -279,6 +279,44 @@ class STFTDeltaPerturber(nn.Module):
         """In-place clip of \Delta to satisfy the constraint."""
         self.delta.clamp_(-self.epsilon_delta, self.epsilon_delta)
 
+    @torch.no_grad()
+    def magnitude_stats(self, x: Tensor) -> dict[str, float]:
+        """Compute basic STFT magnitude stats for x and |Δ| for logging/debugging.
+
+        Args:
+            x: (B,1,C,T) batch input in the same layout expected by ``forward``.
+        """
+        if x.dim() != 4 or x.size(1) != 1:
+            raise ValueError(f"Expected x shape (B,1,C,T), got {tuple(x.shape)}")
+        B, _, C, T = x.shape
+        if C != self.channels or T != self.time_steps:
+            raise ValueError(
+                f"Input mismatch for magnitude stats: got C={C}, T={T}; expected C={self.channels}, T={self.time_steps}"
+            )
+
+        x_bar = x.squeeze(1)
+        flat = x_bar.reshape(B * C, T)
+        S = torch.stft(
+            flat,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            win_length=self.win_length,
+            window=self.window,
+            center=True,
+            return_complex=True,
+        )
+        mag = S.abs()
+
+        delta_abs = self.delta.detach().abs()
+        mag_mean = mag.mean().item()
+        return {
+            "stft_mean": mag_mean,
+            "stft_max": mag.max().item(),
+            "delta_mean": delta_abs.mean().item(),
+            "delta_max": delta_abs.max().item(),
+            "delta_to_mag_ratio": delta_abs.mean().item() / (mag_mean + 1e-12),
+        }
+
     def forward(self, x: Tensor) -> Tensor:
         """Protect x via STFT magnitude perturbation.
 
@@ -374,6 +412,9 @@ def optimize_delta(
     eot: Optional[EOTDistribution] = None,
     device: Optional[torch.device] = None,
     log_every: int = 10,
+    early_stop_patience: int = 50,
+    task_loss_threshold: float = 1e-3,
+    plateau_tolerance: float = 1e-5,
 ) -> None:
     """Stage-1 optimizer: update \Delta only.
 
@@ -391,6 +432,10 @@ def optimize_delta(
     optimizer = torch.optim.Adam([perturber.delta], lr=lr)
 
     step = 0
+    plateau_steps = 0
+    prev_task_loss: Optional[float] = None
+    prev_uid_loss: Optional[float] = None
+    prev_reg_loss: Optional[float] = None
     for epoch in range(1, epochs + 1):
         for batch in dataloader:
             if len(batch) != 3:
@@ -437,11 +482,43 @@ def optimize_delta(
 
             step += 1
             if log_every > 0 and step % log_every == 0:
+                mag_stats = perturber.magnitude_stats(x_t)
                 print(
                     f"[epoch {epoch}/{epochs} | step {step}] "
                     f"L={loss.item():.6f} (task={loss_task.item():.6f}, uid={loss_uid.item():.6f}, reg={loss_reg.item():.6f}) "
-                    f"| max|Δ|={perturber.delta.detach().abs().max().item():.5f}"
+                    f"| max|Δ|={perturber.delta.detach().abs().max().item():.5f} "
+                    f"| STFT|A| mean={mag_stats['stft_mean']:.6f}, max={mag_stats['stft_max']:.6f}; "
+                    f"|Δ| mean={mag_stats['delta_mean']:.6f}, max={mag_stats['delta_max']:.6f}, mean_ratio={mag_stats['delta_to_mag_ratio']:.6f}"
                 )
+
+            if early_stop_patience > 0 and loss_task.item() <= task_loss_threshold:
+                if prev_task_loss is not None:
+                    task_change = abs(loss_task.item() - prev_task_loss)
+                    uid_change = abs(loss_uid.item() - (prev_uid_loss or 0.0))
+                    reg_change = abs(loss_reg.item() - (prev_reg_loss or 0.0))
+                    if (
+                        task_change < plateau_tolerance
+                        and uid_change < plateau_tolerance
+                        and reg_change < plateau_tolerance
+                    ):
+                        plateau_steps += 1
+                    else:
+                        plateau_steps = 0
+                prev_task_loss = loss_task.item()
+                prev_uid_loss = loss_uid.item()
+                prev_reg_loss = loss_reg.item()
+
+                if plateau_steps >= early_stop_patience:
+                    print(
+                        f"Early stopping delta optimization at epoch {epoch}, step {step}: "
+                        f"task/uid/reg losses plateaued with task loss {loss_task.item():.6f}."
+                    )
+                    return
+            else:
+                plateau_steps = 0
+                prev_task_loss = None
+                prev_uid_loss = None
+                prev_reg_loss = None
 
 
 # ---------------------------------

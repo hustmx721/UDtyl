@@ -338,6 +338,9 @@ def train_distillation(args: argparse.Namespace) -> None:
         eot=eot_distribution,
         device=device,
         log_every=args.val_interval,
+        early_stop_patience=args.delta_earlystop,
+        task_loss_threshold=args.delta_task_loss_threshold,
+        plateau_tolerance=args.delta_plateau_tolerance,
     )
 
     if args.save_delta:
@@ -505,6 +508,24 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--lambda_reg", type=float, default=1e-4)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument(
+        "--delta_earlystop",
+        type=int,
+        default=50,
+        help="Patience (in plateau steps) for stopping delta optimization when losses stabilize",
+    )
+    parser.add_argument(
+        "--delta_task_loss_threshold",
+        type=float,
+        default=1e-3,
+        help="Minimum task loss required before considering delta optimization early stop",
+    )
+    parser.add_argument(
+        "--delta_plateau_tolerance",
+        type=float,
+        default=1e-5,
+        help="Absolute loss change threshold to count as plateau for early stopping",
+    )
     parser.add_argument("--val_interval", type=int, default=5)
     parser.add_argument("--save_delta", type=str, default=default_delta_root, help="Path to save the perturbation template")
     parser.add_argument("--eot_shift", type=int, default=16)
