@@ -78,13 +78,13 @@ def _resolve_checkpoint_path(
         return Path(provided)
     default_dir = Path(args.model_root) / "Distill_Pretrain_"
     default_dir.mkdir(parents=True, exist_ok=True)
-    return default_dir / f"{prefix}_{model_name}_seed{args.seed}.pth"
+    return default_dir / f"{args.eot_tag}_{prefix}_{model_name}_seed{args.seed}.pth"
 
 
 def _resolve_metrics_path(args: argparse.Namespace, prefix: str, model_name: str) -> Path:
     csv_dir = Path(args.csv_root) / "Distill_Pretrain_"
     csv_dir.mkdir(parents=True, exist_ok=True)
-    return csv_dir / f"{prefix}_Clean_{model_name}.csv"
+    return csv_dir / f"{args.eot_tag}_{prefix}_Clean_{model_name}.csv"
 
 
 def _save_teacher_metrics(
@@ -337,10 +337,15 @@ def train_distillation(args: argparse.Namespace) -> None:
     )
 
     if args.save_delta:
-        save_path = Path(args.save_delta)
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save(perturber.state_dict(), save_path)
-        print(f"Saved perturbation template to {save_path}")
+        raw_save_path = Path(args.save_delta)
+        if raw_save_path.suffix:
+            save_path = raw_save_path
+            save_dir = raw_save_path.parent
+        else:
+            save_dir = raw_save_path
+            save_path = save_dir / f"delta_{args.dataset}_{args.task_model}_{args.eot_tag}_seed{args.seed}.pth"
+
+        save_dir.mkdir(parents=True, exist_ok=True)
 
     perturber.eval()
     # Report perturbed accuracies on the held-out test split
@@ -462,7 +467,7 @@ def save_results_csv(
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
-    project_root = Path(__file__).resolve().parent.parent
+    project_root = Path(__file__).resolve().parent
     default_log_root = project_root / "logs"
     default_model_root = project_root / "ModelSave"
     default_csv_root = project_root / "csv"
@@ -521,6 +526,7 @@ def main():
     uid_results = np.zeros((len(seeds), 4))
 
     eot_tag = describe_eot(args)
+    args.eot_tag = eot_tag
 
     for idx, seed in enumerate(seeds):
         args.seed = seed
@@ -542,7 +548,7 @@ def main():
         print(f"lambda task : {args.lambda_task}")
         print(f"lambda uid  : {args.lambda_uid}")
         print(f"lambda reg  : {args.lambda_reg}")
-        print(f"eot tag     : {eot_tag}")
+        print(f"eot tag     : {args.eot_tag}")
 
         metrics = train_distillation(args)
         pert_task = metrics["perturbed_task"]

@@ -222,8 +222,8 @@ def apply_thread_limits(thread_count: int | None):
 
 
 def load_all(args: argparse.ArgumentParser):
-    thread_count = max(1, getattr(args, "torch_threads", 4))
-    apply_thread_limits(thread_count)
+    # thread_count = max(1, getattr(args, "torch_threads", 4))
+    # apply_thread_limits(thread_count)
     device = torch.device("cuda:"+str(args.gpuid) if torch.cuda.is_available() else "cpu")
     model = LoadModel(model_name=args.model, Chans=args.channel, Samples=int(args.fs*args.timepoint), n_classes=args.nclass).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.initlr)

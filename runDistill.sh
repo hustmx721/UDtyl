@@ -108,8 +108,6 @@ for dataset in "${datasets[@]}"; do
         --gpuid "${gpu_id}" \
         --task_model "${model}" \
         --uid_model "${model}" \
-        --repeats 5 \
-        --seed 2024 \
         "${eot_flags[@]}" &
 
       pid=$!
