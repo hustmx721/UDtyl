@@ -22,6 +22,10 @@ from utils.dataset import set_seed
 from utils.init_all import load_all, load_data, set_args
 
 
+def format_lambda_tag(lambda_task: float, lambda_uid: float, lambda_reg: float) -> str:
+    """Return a file-system friendly tag for the current lambda configuration."""
+    return f"lt{lambda_task}_lu{lambda_uid}_lr{lambda_reg}".replace(".", "p")
+
 
 def build_eot_distribution(args: argparse.Namespace) -> Optional[EOTDistribution]:
     """Construct the shared EOT distribution used by both distillation and evaluation."""
@@ -344,13 +348,15 @@ def train_distillation(args: argparse.Namespace) -> None:
     )
 
     if args.save_delta:
+        lambda_tag = format_lambda_tag(args.lambda_task, args.lambda_uid, args.lambda_reg)
+        combined_tag = f"{args.eot_tag}_{lambda_tag}"
         raw_save_path = Path(args.save_delta)
         if raw_save_path.suffix:
             save_path = raw_save_path
             save_dir = raw_save_path.parent
         else:
-            save_dir = raw_save_path
-            save_path = save_dir / f"delta_{args.dataset}_{args.task_model}_{args.eot_tag}_seed{args.seed}.pth"
+            save_dir = raw_save_path / args.dataset / args.task_model
+            save_path = save_dir / f"delta_{args.dataset}_{args.task_model}_{combined_tag}_seed{args.seed}.pth"
 
         save_dir.mkdir(parents=True, exist_ok=True)
         torch.save({"delta": perturber}, save_path)
@@ -472,15 +478,16 @@ def save_results_csv(
         index=[*(str(seed) for seed in seeds), "Avg", "Std"],
     ).round(4)
     run_date = time.strftime("%Y%m%d")
-    lambda_tag = f"lt{args.lambda_task}_lu{args.lambda_uid}_lr{args.lambda_reg}".replace(".", "p")
+    lambda_tag = format_lambda_tag(args.lambda_task, args.lambda_uid, args.lambda_reg)
+    combined_tag = f"{eot_tag}_{lambda_tag}"
     df["Date"] = run_date
     df["LambdaTask"] = args.lambda_task
     df["LambdaUID"] = args.lambda_uid
     df["LambdaReg"] = args.lambda_reg
     df["EOT"] = eot_tag
-    csv_path = args.csv_root / f"{args.dataset}"
+    csv_path = args.csv_root / f"{args.dataset}" / args.task_model
     os.makedirs(csv_path, exist_ok=True)
-    csv_name = f"Distill_{prefix}_{args.task_model}_{eot_tag}_{lambda_tag}_{run_date}.csv"
+    csv_name = f"Distill_{prefix}_{args.task_model}_{combined_tag}_{run_date}.csv"
     df.to_csv(csv_path / csv_name)
 
 
@@ -569,10 +576,12 @@ def main():
         set_seed(seed)
         
         run_date = time.strftime("%Y%m%d")
-        lambda_tag = f"lt{args.lambda_task}_lu{args.lambda_uid}_lr{args.lambda_reg}".replace(".", "p")
+        lambda_tag = format_lambda_tag(args.lambda_task, args.lambda_uid, args.lambda_reg)
+        combined_tag = f"{args.eot_tag}_{lambda_tag}"
 
-        log_path = args.log_root / f"Distill_{args.dataset}_{args.task_model}_{eot_tag}_{lambda_tag}_{run_date}.log"
-        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_dir = args.log_root / args.dataset / args.task_model
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / f"Distill_{args.dataset}_{args.task_model}_{combined_tag}_{run_date}.log"
         sys.stdout = Logger(log_path)
 
         start_time = time.time()
