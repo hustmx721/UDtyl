@@ -502,16 +502,16 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--teacher_earlystop", type=int, default=30, help="Early-stop patience for teacher training")
     parser.add_argument("--n_fft", type=int, default=256)
     parser.add_argument("--hop_length", type=int, default=None)
-    parser.add_argument("--epsilon_a", type=float, default=0.05)
+    parser.add_argument("--epsilon_a", type=float, default=1.0)
     parser.add_argument("--lambda_task", type=float, default=1.0)
-    parser.add_argument("--lambda_uid", type=float, default=2.0)
-    parser.add_argument("--lambda_reg", type=float, default=1e-4)
-    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--lambda_uid", type=float, default=5.0)
+    parser.add_argument("--lambda_reg", type=float, default=1e-3)
+    parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument(
         "--delta_earlystop",
         type=int,
-        default=50,
+        default=10,
         help="Patience (in plateau steps) for stopping delta optimization when losses stabilize",
     )
     parser.add_argument(
@@ -592,7 +592,7 @@ def main():
     summarize_results(task_results, seeds, "Distill Perturbed Task")
     summarize_results(uid_results, seeds, "Distill Perturbed UID")
     save_results_csv(task_results, args, "TaskPerturbed", seeds, eot_tag)
-    save_results_csv(uid_results, args, "Distill_UIDPerturbed", seeds, eot_tag)
+    save_results_csv(uid_results, args, "UIDPerturbed", seeds, eot_tag)
     print("All seeds finished.")
 
 
