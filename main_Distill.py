@@ -567,8 +567,11 @@ def main():
     for idx, seed in enumerate(seeds):
         args.seed = seed
         set_seed(seed)
+        
+        run_date = time.strftime("%Y%m%d")
+        lambda_tag = f"lt{args.lambda_task}_lu{args.lambda_uid}_lr{args.lambda_reg}".replace(".", "p")
 
-        log_path = args.log_root / f"Distill_{args.dataset}_{args.task_model}_{eot_tag}.log"
+        log_path = args.log_root / f"Distill_{args.dataset}_{args.task_model}_{eot_tag}_{lambda_tag}_{run_date}.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
         sys.stdout = Logger(log_path)
 
