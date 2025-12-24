@@ -1,12 +1,11 @@
 """Distill-STFT-UD 
 
-Implements the algorithm you provided:
+Implements the algorithm you provided with log-magnitude perturbations:
 - Only \Delta is learnable.
-- STFT -> magnitude + \Delta -> ReLU -> iSTFT.
+- STFT -> log-magnitude + \Delta (tanh-bounded) -> exp -> iSTFT.
 - Task distillation: KL(p_T || p_T') with frozen teacher T.
-- UID uniformization: KL(p_D' || uniform) with frozen adversary D.
-- L2 regularizer on \Delta.
-- \Delta is clipped to [-epsilon_delta, +epsilon_delta] each iteration.
+- UID uniformization: maximize entropy H(p_D').
+- Regularizer on time-domain perturbation energy.
 
 This is a **self-contained** reference implementation (PyTorch only) designed for:
 - correctness (shape checks, correct KL direction),
@@ -80,6 +79,19 @@ def uniform_kl(p: Tensor, num_classes: int, eps: float = 1e-8, reduction: str = 
     if reduction == "batchmean":
         return kl.sum() / max(1, p.size(0))
     raise ValueError(f"Unknown reduction={reduction}")
+
+
+def entropy_from_logits(logits: Tensor, tau: float = 1.0) -> Tensor:
+    """Compute the mean entropy H(p) from logits.
+
+    Args:
+        logits: (..., K) pre-softmax scores.
+        tau: temperature to soften the distribution if desired.
+    """
+    logp = F.log_softmax(logits / tau, dim=-1)
+    p = logp.exp()
+    ent = -(p * logp).sum(dim=-1)
+    return ent.mean()
 
 
 # ---------------------------
@@ -269,15 +281,16 @@ class STFTDeltaPerturber(nn.Module):
             self.freq_bins = int(stft.shape[-2])
             self.frames = int(stft.shape[-1])
 
-        # Learnable \Delta
-        delta = torch.empty(1, self.channels, self.freq_bins, self.frames, device=self.device)
-        delta.uniform_(-self.init_delta, self.init_delta)
-        self.delta = nn.Parameter(delta)
+        # Learnable \Delta parameterized via tanh for bounded perturbations in log-magnitude space
+        delta_raw = torch.full((1, self.channels, self.freq_bins, self.frames), 0.0, device=self.device)
+        if self.init_delta != 0:
+            init_scaled = max(min(self.init_delta / (self.epsilon_delta + 1e-12), 0.99), -0.99)
+            delta_raw.fill_(math.atanh(init_scaled))
+        self.delta_raw = nn.Parameter(delta_raw)
 
-    @torch.no_grad()
-    def clip_(self) -> None:
-        """In-place clip of \Delta to satisfy the constraint."""
-        self.delta.clamp_(-self.epsilon_delta, self.epsilon_delta)
+    def get_delta(self) -> Tensor:
+        """Return bounded Δ in the same shape as STFT magnitudes."""
+        return self.epsilon_delta * torch.tanh(self.delta_raw)
 
     @torch.no_grad()
     def magnitude_stats(self, x: Tensor) -> dict[str, float]:
@@ -307,7 +320,7 @@ class STFTDeltaPerturber(nn.Module):
         )
         mag = S.abs()
 
-        delta_abs = self.delta.detach().abs()
+        delta_abs = self.get_delta().detach().abs()
         mag_mean = mag.mean().item()
         return {
             "stft_mean": mag_mean,
@@ -334,9 +347,6 @@ class STFTDeltaPerturber(nn.Module):
         if T != self.time_steps:
             raise ValueError(f"Time mismatch: expected T={self.time_steps}, got {T}")
 
-        # Enforce constraint before use (algorithm step 1)
-        self.clip_()
-
         x_bar = x.squeeze(1)              # (B,C,T)
         flat = x_bar.reshape(B * C, T)    # (B*C,T)
 
@@ -362,8 +372,12 @@ class STFTDeltaPerturber(nn.Module):
                 f"expected ({self.freq_bins},{self.frames})."
             )
 
-        # Magnitude perturbation (M=1) + ReLU
-        A_prime = torch.relu(A + self.delta)  # broadcast over batch
+        eps_mag = 1e-6
+        A_log = torch.log(A + eps_mag)
+        Delta = self.get_delta()  # broadcast over batch
+        A_log_prime = A_log + Delta
+        A_prime = torch.exp(A_log_prime) - eps_mag
+        A_prime = torch.relu(A_prime)
         S_prime = torch.polar(A_prime, Phi)
 
         # iSTFT
@@ -382,8 +396,8 @@ class STFTDeltaPerturber(nn.Module):
         return x_rec.unsqueeze(1)
 
     def l2_regularizer(self) -> Tensor:
-        """||Δ||_2^2 (mean)."""
-        return (self.delta ** 2).mean()
+        """||Δ||_2^2 (mean) in the bounded space."""
+        return (self.get_delta() ** 2).mean()
 
 
 # ---------------------------------
@@ -429,7 +443,7 @@ def optimize_delta(
     _freeze(uid_adv)
 
     perturber.train()
-    optimizer = torch.optim.Adam([perturber.delta], lr=lr)
+    optimizer = torch.optim.Adam([perturber.delta_raw], lr=lr)
 
     step = 0
     plateau_steps = 0
@@ -463,30 +477,44 @@ def optimize_delta(
             with torch.no_grad():
                 p_T = F.softmax(teacher(x_t), dim=1)
 
-            p_T_prime = F.softmax(teacher(x_prime_t), dim=1)
-            p_D_prime = F.softmax(uid_adv(x_prime_t), dim=1)
+            t_logits_prime = teacher(x_prime_t)
+            p_T_prime = F.softmax(t_logits_prime, dim=1)
+            uid_logits_prime = uid_adv(x_prime_t)
 
             # Losses
             loss_task = kl_pq(p_T, p_T_prime, reduction="batchmean")
-            loss_uid = uniform_kl(p_D_prime, num_uid_classes, reduction="batchmean")
-            loss_reg = perturber.l2_regularizer()
+            H_uid = entropy_from_logits(uid_logits_prime, tau=1.0)
+            loss_uid = -H_uid
+            loss_reg = ((x_prime_t - x_t) ** 2).mean() / (x_t.pow(2).mean() + 1e-12)
 
             loss = lambda_task * loss_task + lambda_uid * loss_uid + lambda_reg * loss_reg
 
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
-            optimizer.step()
 
-            # Clip after update (algorithm step 7)
-            perturber.clip_()
+            with torch.no_grad():
+                delta_grad_norm = (
+                    perturber.delta_raw.grad.detach().norm().item()
+                    if perturber.delta_raw.grad is not None
+                    else 0.0
+                )
+                delta_eff = perturber.get_delta()
+                delta_max = float(delta_eff.abs().max().item())
+                delta_mean = float(delta_eff.abs().mean().item())
+                H_val = float(H_uid.item())
+                logK = math.log(num_uid_classes)
+                gap = logK - H_val
+
+            optimizer.step()
 
             step += 1
             if log_every > 0 and step % log_every == 0:
                 mag_stats = perturber.magnitude_stats(x_t)
                 print(
                     f"[epoch {epoch}/{epochs} | step {step}] "
-                    f"L={loss.item():.6f} (task={loss_task.item():.6f}, uid={loss_uid.item():.6f}, reg={loss_reg.item():.6f}) "
-                    f"| max|Δ|={perturber.delta.detach().abs().max().item():.5f} "
+                    f"L={loss.item():.6f} (task={loss_task.item():.6f}, -H_uid={loss_uid.item():.6f}, reg={loss_reg.item():.6f}) "
+                    f"| H={H_val:.4f} (logK={logK:.4f}, gap={gap:.4f}) "
+                    f"| grad||Δ||={delta_grad_norm:.3e} | max|Δ|={delta_max:.5f} | mean|Δ|={delta_mean:.5f} "
                     f"| STFT|A| mean={mag_stats['stft_mean']:.6f}, max={mag_stats['stft_max']:.6f}; "
                     f"|Δ| mean={mag_stats['delta_mean']:.6f}, max={mag_stats['delta_max']:.6f}, mean_ratio={mag_stats['delta_to_mag_ratio']:.6f}"
                 )
@@ -591,16 +619,15 @@ def _run_unit_tests() -> None:
 
     # 1) Identity when Δ=0 (approximately)
     with torch.no_grad():
-        pert.delta.zero_()
+        pert.delta_raw.zero_()
         x_rec = pert(x)
         mse = (x_rec - x).pow(2).mean().item()
     assert mse < 1e-6, f"Expected near-perfect recon when Δ=0, got MSE={mse}"
 
-    # 2) Clip works (allow tiny fp residue)
+    # 2) Bounded Δ via tanh (allow tiny fp residue)
     with torch.no_grad():
-        pert.delta.fill_(1.0)
-        pert.clip_()
-        assert pert.delta.abs().max().item() <= pert.epsilon_delta + 1e-6
+        pert.delta_raw.fill_(10.0)
+        assert pert.get_delta().abs().max().item() <= pert.epsilon_delta + 1e-6
 
     # 3) KL(p||uniform) = 0 when p is uniform
     p = torch.full((B, 5), 1.0 / 5)
@@ -623,8 +650,8 @@ def _run_unit_tests() -> None:
     loss = kl_pq(p_T, p_T_prime) + uniform_kl(p_D_prime, 6) + 1e-3 * pert.l2_regularizer()
     pert.zero_grad(set_to_none=True)
     loss.backward()
-    assert pert.delta.grad is not None
-    assert torch.isfinite(pert.delta.grad).all()
+    assert pert.delta_raw.grad is not None
+    assert torch.isfinite(pert.delta_raw.grad).all()
 
     print("All unit tests passed.")
 

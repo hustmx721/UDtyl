@@ -471,9 +471,17 @@ def save_results_csv(
         columns=["Acc", "F1", "BCA", "EER"],
         index=[*(str(seed) for seed in seeds), "Avg", "Std"],
     ).round(4)
+    run_date = time.strftime("%Y%m%d")
+    lambda_tag = f"lt{args.lambda_task}_lu{args.lambda_uid}_lr{args.lambda_reg}".replace(".", "p")
+    df["Date"] = run_date
+    df["LambdaTask"] = args.lambda_task
+    df["LambdaUID"] = args.lambda_uid
+    df["LambdaReg"] = args.lambda_reg
+    df["EOT"] = eot_tag
     csv_path = args.csv_root / f"{args.dataset}"
     os.makedirs(csv_path, exist_ok=True)
-    df.to_csv(csv_path / f"Distill_{prefix}_{args.task_model}_{eot_tag}.csv")
+    csv_name = f"Distill_{prefix}_{args.task_model}_{eot_tag}_{lambda_tag}_{run_date}.csv"
+    df.to_csv(csv_path / csv_name)
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
