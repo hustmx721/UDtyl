@@ -30,6 +30,9 @@ def format_lambda_tag(lambda_task: float, lambda_uid: float, lambda_reg: float) 
 def build_eot_distribution(args: argparse.Namespace) -> Optional[EOTDistribution]:
     """Construct the shared EOT distribution used by both distillation and evaluation."""
 
+    if args.disable_eot:
+        return None
+
     enabled = any(
         [
             args.eot_shift_prob > 0 and args.eot_shift > 0,
@@ -56,6 +59,9 @@ def build_eot_distribution(args: argparse.Namespace) -> Optional[EOTDistribution
 
 def describe_eot(args: argparse.Namespace) -> str:
     """Build a short tag that captures the enabled EOT transforms for file names."""
+
+    if args.disable_eot:
+        return "eot_disabled"
 
     parts = []
     if args.eot_shift_prob > 0 and args.eot_shift > 0:
@@ -303,13 +309,16 @@ def _gather_uid_labels(indices: Tensor, mapping: dict[int, int], device: torch.d
 def train_distillation(args: argparse.Namespace) -> None:
     set_seed(args.seed)
     args = set_args(args)
+    args.disable_eot = getattr(args, "disable_eot", False)
     eot_distribution = build_eot_distribution(args)
+    eot_distribution_eval = None  # Always disable EOT when evaluating/testing the perturbed samples
 
     teacher, device, teacher_clean_metrics = _prepare_teacher(args)
 
     uid_args = deepcopy(args)
     uid_args.is_task = False
     uid_args = set_args(uid_args)
+    uid_args.disable_eot = args.disable_eot
     uid_adv, uid_clean_metrics = _prepare_uid_adv(uid_args, device)
 
     trainloader_task, valloader_task, testloader_task = load_data(args, include_index=True)
@@ -371,20 +380,18 @@ def train_distillation(args: argparse.Namespace) -> None:
         uid_adv,
         testloader_task,
         test_uid_map,
-        eot_distribution,
+        eot_distribution_eval,
         device,
         apply_perturb=True,
     )
     print(
-        "[Final Test] perturbed_task: acc={:.4f}, f1={:.4f}, bca={:.4f}, eer={:.4f} | "
-        "perturbed_uid: acc={:.4f}, f1={:.4f}, bca={:.4f}, eer={:.4f}".format(
-            test_task_acc,
-            test_task_f1,
+        "[Final Test] perturbed_task: bca={:.4f}, f1={:.4f}, eer={:.4f} | "
+        "perturbed_uid: bca={:.4f}, f1={:.4f}, eer={:.4f}".format(
             test_task_bca,
+            test_task_f1,
             test_task_eer,
-            test_uid_acc,
-            test_uid_f1,
             test_uid_bca,
+            test_uid_f1,
             test_uid_eer,
         )
     )
@@ -450,44 +457,54 @@ def evaluate_metrics(
 
 def summarize_results(results: np.ndarray, seeds: List[int], prefix: str) -> None:
     row_labels = [str(seed) for seed in seeds] + ["Avg", "Std"]
-    col_labels = ["Acc", "F1", "BCA", "EER"]
+    col_labels = ["BCA", "F1", "EER"]
     print(f"{prefix}结果汇总")
     print(
-        f"{'SEED':<10} {col_labels[0]:<10} {col_labels[1]:<10} {col_labels[2]:<10} {col_labels[3]:<10}"
+        f"{'SEED':<10} {col_labels[0]:<10} {col_labels[1]:<10} {col_labels[2]:<10}"
     )
     for i, seed in enumerate(seeds):
         row = results[i]
-        print(f"{row_labels[i]:<10} {row[0]:<10.4f} {row[1]:<10.4f} {row[2]:<10.4f} {row[3]:<10.4f}")
+        print(f"{row_labels[i]:<10} {row[0]:<10.4f} {row[1]:<10.4f} {row[2]:<10.4f}")
     print(
         f"{row_labels[-2]:<10} {np.mean(results[:, 0]):<10.4f} {np.mean(results[:, 1]):<10.4f} "
-        f"{np.mean(results[:, 2]):<10.4f} {np.mean(results[:, 3]):<10.4f}"
+        f"{np.mean(results[:, 2]):<10.4f}"
     )
     print(
         f"{row_labels[-1]:<10} {np.std(results[:, 0]):<10.4f} {np.std(results[:, 1]):<10.4f} "
-        f"{np.std(results[:, 2]):<10.4f} {np.std(results[:, 3]):<10.4f}"
+        f"{np.std(results[:, 2]):<10.4f}"
     )
 
 
 def save_results_csv(
-    results: np.ndarray, args, prefix: str, seeds: List[int], eot_tag: str
+    task_results: np.ndarray,
+    uid_results: np.ndarray,
+    args,
+    seeds: List[int],
+    eot_tag: str,
+    timestamp: str,
 ) -> None:
-    final_results = np.vstack([results, np.mean(results, axis=0), np.std(results, axis=0)])
+    task_subset = task_results[:, [0, 1, 2]]
+    uid_subset = uid_results[:, [0, 1, 2]]
+    combined = np.hstack([task_subset, uid_subset])
+    final_results = np.vstack([combined, np.mean(combined, axis=0), np.std(combined, axis=0)])
     df = pd.DataFrame(
         final_results,
-        columns=["Acc", "F1", "BCA", "EER"],
+        columns=["Task_BCA", "Task_F1", "Task_EER", "UID_BCA", "UID_F1", "UID_EER"],
         index=[*(str(seed) for seed in seeds), "Avg", "Std"],
     ).round(4)
-    run_date = time.strftime("%Y%m%d")
+    run_date = timestamp.split("_")[0]
     lambda_tag = format_lambda_tag(args.lambda_task, args.lambda_uid, args.lambda_reg)
     combined_tag = f"{eot_tag}_{lambda_tag}"
+    df.insert(0, "Timestamp", timestamp)
     df["Date"] = run_date
     df["LambdaTask"] = args.lambda_task
     df["LambdaUID"] = args.lambda_uid
     df["LambdaReg"] = args.lambda_reg
     df["EOT"] = eot_tag
+    df["EvalEOTEnabled"] = False
     csv_path = args.csv_root / f"{args.dataset}" / args.task_model
     os.makedirs(csv_path, exist_ok=True)
-    csv_name = f"Distill_{prefix}_{args.task_model}_{combined_tag}_{run_date}.csv"
+    csv_name = f"{timestamp}_Distill_Combined_{args.task_model}_{combined_tag}_{run_date}.csv"
     df.to_csv(csv_path / csv_name)
 
 
@@ -515,6 +532,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=2024)
     parser.add_argument("--teacher_epochs", type=int, default=300, help="Max epochs when training teacher from scratch")
     parser.add_argument("--teacher_earlystop", type=int, default=30, help="Early-stop patience for teacher training")
+    parser.add_argument("--disable_eot", action="store_true", help="Disable EOT transforms during testing/evaluation")
     parser.add_argument("--n_fft", type=int, default=256)
     parser.add_argument("--hop_length", type=int, default=None)
     parser.add_argument("--epsilon_a", type=float, default=1.0)
@@ -563,10 +581,11 @@ def build_argument_parser() -> argparse.ArgumentParser:
 def main():
     parser = build_argument_parser()
     args = parser.parse_args()
-    
+    session_timestamp = time.strftime("%Y%m%d_%H%M%S")
+
     seeds = list(range(args.seed, args.seed + args.repeats))
-    task_results = np.zeros((len(seeds), 4))
-    uid_results = np.zeros((len(seeds), 4))
+    task_results = np.zeros((len(seeds), 3))
+    uid_results = np.zeros((len(seeds), 3))
 
     eot_tag = describe_eot(args)
     args.eot_tag = eot_tag
@@ -581,7 +600,7 @@ def main():
 
         log_dir = args.log_root / args.dataset / args.task_model
         log_dir.mkdir(parents=True, exist_ok=True)
-        log_path = log_dir / f"Distill_{args.dataset}_{args.task_model}_{combined_tag}_{run_date}.log"
+        log_path = log_dir / f"{session_timestamp}_Distill_{args.dataset}_{args.task_model}_{combined_tag}_seed{seed}_{run_date}.log"
         sys.stdout = Logger(log_path)
 
         start_time = time.time()
@@ -597,13 +616,17 @@ def main():
         print(f"lambda uid  : {args.lambda_uid}")
         print(f"lambda reg  : {args.lambda_reg}")
         print(f"eot tag     : {args.eot_tag}")
+        if eot_distribution is not None:
+            print("Note: EOT is used during delta optimization but disabled during evaluation/testing.")
+        else:
+            print("Note: EOT fully disabled for this run (training and evaluation).")
 
         metrics = train_distillation(args)
         pert_task = metrics["perturbed_task"]
         pert_uid = metrics["perturbed_uid"]
 
-        task_results[idx] = pert_task
-        uid_results[idx] = pert_uid
+        task_results[idx] = np.array([pert_task[2], pert_task[1], pert_task[3]])
+        uid_results[idx] = np.array([pert_uid[2], pert_uid[1], pert_uid[3]])
 
         print(f"Seed {seed} finished. Time used: {time.time() - start_time:.2f}s")
         sys.stdout = sys.__stdout__
@@ -611,8 +634,7 @@ def main():
 
     summarize_results(task_results, seeds, "Distill Perturbed Task")
     summarize_results(uid_results, seeds, "Distill Perturbed UID")
-    save_results_csv(task_results, args, "TaskPerturbed", seeds, eot_tag)
-    save_results_csv(uid_results, args, "UIDPerturbed", seeds, eot_tag)
+    save_results_csv(task_results, uid_results, args, seeds, eot_tag, session_timestamp)
     print("All seeds finished.")
 
 
