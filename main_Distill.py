@@ -24,7 +24,7 @@ from utils.init_all import load_all, load_data, set_args
 
 def format_lambda_tag(lambda_task: float, lambda_uid: float, lambda_reg: float) -> str:
     """Return a file-system friendly tag for the current lambda configuration."""
-    return f"lt{lambda_task}_lu{lambda_uid}_lr{lambda_reg}".replace(".", "p")
+    return f"lt{lambda_task}_lu{lambda_uid}_lr{lambda_reg}"
 
 
 def build_eot_distribution(args: argparse.Namespace) -> Optional[EOTDistribution]:
@@ -365,7 +365,7 @@ def train_distillation(args: argparse.Namespace) -> None:
             save_dir = raw_save_path.parent
         else:
             save_dir = raw_save_path / args.dataset / args.task_model
-            save_path = save_dir / f"delta_{args.dataset}_{args.task_model}_{combined_tag}_seed{args.seed}.pth"
+            save_path = save_dir / f"{combined_tag}_seed{args.seed}.pth"
 
         save_dir.mkdir(parents=True, exist_ok=True)
         torch.save({"delta": perturber}, save_path)
@@ -594,7 +594,7 @@ def main():
         args.seed = seed
         set_seed(seed)
         
-        run_date = time.strftime("%Y%m%d")
+        run_date = time.strftime("%Y%m%d_%H")
         lambda_tag = format_lambda_tag(args.lambda_task, args.lambda_uid, args.lambda_reg)
         combined_tag = f"{args.eot_tag}_{lambda_tag}"
 
