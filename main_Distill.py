@@ -365,7 +365,7 @@ def train_distillation(args: argparse.Namespace) -> None:
             save_dir = raw_save_path.parent
         else:
             save_dir = raw_save_path / args.dataset / args.task_model
-            save_path = save_dir / f"{combined_tag}_seed{args.seed}.pth"
+            save_path = save_dir / f"{combined_tag}_seed{args.seed}_TestWOEOT.pth"
 
         save_dir.mkdir(parents=True, exist_ok=True)
         torch.save({"delta": perturber}, save_path)
@@ -504,7 +504,7 @@ def save_results_csv(
     df["EvalEOTEnabled"] = False
     csv_path = args.csv_root / f"{args.dataset}" / args.task_model
     os.makedirs(csv_path, exist_ok=True)
-    csv_name = f"{timestamp}_Distill_Combined_{args.task_model}_{combined_tag}_{run_date}.csv"
+    csv_name = f"{timestamp}_Distill_Combined_{combined_tag}_TestWOEOT.csv"
     df.to_csv(csv_path / csv_name)
 
 
@@ -594,13 +594,12 @@ def main():
         args.seed = seed
         set_seed(seed)
         
-        run_date = time.strftime("%Y%m%d_%H")
         lambda_tag = format_lambda_tag(args.lambda_task, args.lambda_uid, args.lambda_reg)
         combined_tag = f"{args.eot_tag}_{lambda_tag}"
 
         log_dir = args.log_root / args.dataset / args.task_model
         log_dir.mkdir(parents=True, exist_ok=True)
-        log_path = log_dir / f"{session_timestamp}_Distill_{args.dataset}_{args.task_model}_{combined_tag}_seed{seed}_{run_date}.log"
+        log_path = log_dir / f"{session_timestamp}_Distill_{combined_tag}_TestWOEOT.log"
         sys.stdout = Logger(log_path)
 
         start_time = time.time()
@@ -616,10 +615,6 @@ def main():
         print(f"lambda uid  : {args.lambda_uid}")
         print(f"lambda reg  : {args.lambda_reg}")
         print(f"eot tag     : {args.eot_tag}")
-        if eot_distribution is not None:
-            print("Note: EOT is used during delta optimization but disabled during evaluation/testing.")
-        else:
-            print("Note: EOT fully disabled for this run (training and evaluation).")
 
         metrics = train_distillation(args)
         pert_task = metrics["perturbed_task"]
