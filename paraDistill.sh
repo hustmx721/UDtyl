@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "Distillation Experiments"
+echo "Distillation Experiments (set ENTRY_SCRIPT=main_Distill.py to reuse baseline)"
+
+entry_script="${ENTRY_SCRIPT:-main_Distill2.py}"
 
 datasets=("Rest" "Motor")
 models=("EEGNet" "DeepConvNet" "ShallowConvNet")
@@ -69,9 +71,9 @@ for dataset in "${datasets[@]}"; do
           ;;
       esac
 
-      echo "Launch: dataset=${dataset}, task_model=${model}, uid_model=${model}, eot=${eot}, gpu=${gpu_id}"
+      echo "Launch: script=${entry_script}, dataset=${dataset}, task_model=${model}, uid_model=${model}, eot=${eot}, gpu=${gpu_id}"
 
-      python -u main_Distill.py \
+      python -u "${entry_script}" \
         --dataset "${dataset}" \
         --gpuid "${gpu_id}" \
         --task_model "${model}" \
