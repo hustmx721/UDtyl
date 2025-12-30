@@ -367,7 +367,7 @@ class UIDLabelLoader:
 def _resolve_student_checkpoint_path(args: argparse.Namespace, prefix: str, model_name: str) -> Path:
     save_dir = Path(args.student_model_root)
     save_dir.mkdir(parents=True, exist_ok=True)
-    return save_dir / f"{prefix}_{model_name}_{args.dataset}_seed{args.seed}.pth"
+    return save_dir / f"Retrain_{prefix}_{model_name}_{args.dataset}_seed{args.seed}.pth"
 
 
 def _train_model_with_perturbation(
@@ -498,7 +498,7 @@ def train_distillation(args: argparse.Namespace) -> None:
             save_dir = raw_save_path.parent
         else:
             save_dir = raw_save_path / args.dataset / args.task_model
-            save_path = save_dir / f"{combined_tag}_seed{args.seed}_TestWOEOT.pth"
+            save_path = save_dir / f"Retrain_{combined_tag}_seed{args.seed}.pth"
 
         save_dir.mkdir(parents=True, exist_ok=True)
         torch.save({"delta": perturber}, save_path)

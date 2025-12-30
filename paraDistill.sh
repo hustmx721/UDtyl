@@ -5,17 +5,20 @@ echo "Distillation Experiments (set ENTRY_SCRIPT=main_Distill.py to reuse baseli
 
 entry_script="${ENTRY_SCRIPT:-main_Distill2.py}"
 
-datasets=("Rest" "Motor")
+datasets=("Rest" "Transient" "Steady" "Motor")
 models=("EEGNet" "DeepConvNet" "ShallowConvNet")
 # models=("EEGNet")
 # Each entry enables exactly one EOT transform; others are disabled for that run.
 eot_modes=(
+  "none"
+  "shift"
+  "scale"
   "channel_dropout"
   "resample"
 )
-gpus=(4 5)
+gpus=(0 1 2)
 
-max_jobs=2
+max_jobs=3
 jobs=()
 job_idx=0
 failed=0
@@ -47,6 +50,35 @@ for dataset in "${datasets[@]}"; do
 
       # --------- Base: disable all transforms explicitly ----------
       case "$eot" in
+        "none")
+          eot_flags=(
+            --eot_shift 0
+            --eot_shift_prob 0.0
+            --eot_scale_prob 0.0
+            --eot_channel_dropout 0.0 --eot_channel_dropout_prob 0.0
+            --eot_resample 0.0 --eot_resample_prob 0.0
+          )
+          ;;
+        "shift")
+          eot_flags=(
+            # eot_shift 平移步长8~32; eot_shift_prob 平移概率 <=1.0
+            --eot_shift 16
+            --eot_shift_prob 1.0
+            --eot_scale_min 0.0 --eot_scale_max 0.0 --eot_scale_prob 0.0
+            --eot_channel_dropout 0.0 --eot_channel_dropout_prob 0.0
+            --eot_resample 0.0 --eot_resample_prob 0.0
+          )
+          ;;
+        "scale")
+          eot_flags=(
+            --eot_shift 0
+            --eot_shift_prob 0.0
+            --eot_scale
+            --eot_scale_min 0.95 --eot_scale_max 1.05 --eot_scale_prob 1.0
+            --eot_channel_dropout 0.0 --eot_channel_dropout_prob 0.0
+            --eot_resample 0.0 --eot_resample_prob 0.0
+          )
+          ;;
         "channel_dropout")
           eot_flags=(
             --eot_shift 0
@@ -71,7 +103,7 @@ for dataset in "${datasets[@]}"; do
           ;;
       esac
 
-      echo "Launch: script=${entry_script}, dataset=${dataset}, task_model=${model}, uid_model=${model}, eot=${eot}, gpu=${gpu_id}"
+      echo "Launch: dataset=${dataset}, task_model=${model}, uid_model=${model}, eot=${eot}, gpu=${gpu_id}"
 
       python -u "${entry_script}" \
         --dataset "${dataset}" \
