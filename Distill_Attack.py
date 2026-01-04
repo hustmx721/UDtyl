@@ -16,6 +16,11 @@ from utils.dataset import set_seed
 from utils.init_all import apply_thread_limits, load_all, load_data, set_args
 
 
+def format_lambda_tag(lambda_task: float, lambda_uid: float, lambda_reg: float) -> str:
+    """Return a file-system friendly tag for the current lambda configuration."""
+    return f"lt{lambda_task}_lu{lambda_uid}_lr{lambda_reg}"
+
+
 def build_eot_distribution(args: argparse.Namespace) -> Optional[EOTDistribution]:
     """Construct the shared EOT distribution used to regenerate UD samples."""
 
@@ -357,6 +362,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     default_log_root = project_root / "logs"
     default_model_root = project_root / "ModelSave"
     default_csv_root = project_root / "csv"
+    default_delta_root = project_root / "ModelSave" / "Distill_Delta"
 
     parser = argparse.ArgumentParser(description="UID adversarial training on UD data")
     parser.add_argument("--dataset", type=str, required=True)
@@ -372,7 +378,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--earlystop", type=int, default=30)
     parser.add_argument("--seed", type=int, default=2024)
     parser.add_argument("--repeats", type=int, default=5)
-    parser.add_argument("--disable_eot", action="store_true", help="Disable EOT when regenerating UD data")
+    parser.add_argument("--disable_eot", action="store_true", default=True, help="Disable EOT when regenerating UD data")
     parser.add_argument("--n_fft", type=int, default=256)
     parser.add_argument("--hop_length", type=int, default=None)
     parser.add_argument("--eot_shift", type=int, default=16)
@@ -387,17 +393,32 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "--eot_channel_dropout_prob", type=float, default=1.0, help="Probability to apply channel dropout"
     )
     parser.add_argument("--eot_resample_prob", type=float, default=1.0, help="Probability to apply resampling jitter")
-    parser.add_argument("--perturbation_path", type=Path, required=True, help="Checkpoint containing the STFT delta")
+    parser.add_argument("--perturbation_path", type=Path, default=None, help="Checkpoint containing the STFT delta")
+    parser.add_argument("--lambda_task", type=float, default=1.0, help="Task weight used in distillation (for checkpoint naming)")
+    parser.add_argument("--lambda_uid", type=float, default=5.0, help="UID weight used in distillation (for checkpoint naming)")
+    parser.add_argument("--lambda_reg", type=float, default=1e-3, help="Reg weight used in distillation (for checkpoint naming)")
     parser.add_argument("--attack_norm", type=str, choices=["linf", "l2"], default="linf")
-    parser.add_argument("--attack_eps", type=float, default=0.1)
-    parser.add_argument("--attack_steps", type=int, default=5)
-    parser.add_argument("--attack_alpha", type=float, default=0.01, help="Step size for PGD")
-    parser.add_argument("--attack_random_start", action="store_true", help="Use random PGD initialization")
+    parser.add_argument("--attack_eps", type=float, default=0.1, help="Recommended: 0.1–0.2 for normalized inputs")
+    parser.add_argument("--attack_steps", type=int, default=10, help="PGD iterations (10 is a strong default)")
+    parser.add_argument("--attack_alpha", type=float, default=None, help="Step size for PGD (defaults to 1.5*eps/steps)")
+    parser.add_argument("--attack_random_start", action="store_true", default=True, help="Use random PGD initialization")
+    parser.add_argument(
+        "--no_attack_random_start",
+        action="store_false",
+        dest="attack_random_start",
+        help="Disable random PGD initialization",
+    )
     parser.add_argument("--attack_clip_min", type=float, default=None)
     parser.add_argument("--attack_clip_max", type=float, default=None)
     parser.add_argument("--log_root", type=Path, default=default_log_root)
     parser.add_argument("--model_root", type=Path, default=default_model_root)
     parser.add_argument("--csv_root", type=Path, default=default_csv_root)
+    parser.add_argument(
+        "--delta_root",
+        type=Path,
+        default=default_delta_root,
+        help="Root directory where STFT perturbations from distillation are stored",
+    )
     parser.add_argument("--save_model", type=Path, default=None, help="Directory to store best checkpoints")
     parser.add_argument("--torch_threads", type=int, default=4, help="Max torch threads")
     
@@ -417,18 +438,24 @@ def main():
     if args.attack_alpha is None:
         args.attack_alpha = 1.5 * args.attack_eps / max(1, args.attack_steps)
 
-    eot_tag = describe_eot(args)
-    args.eot_tag = eot_tag
-    
-    perturbation_name = eot_tag + "_" + f"lt1.0_lu5.0_lr0.001_seed{args.seed}.pth"
-    perturbation_path = project_root / args.dataset / args.model / perturbation_name
+    args.eot_tag = "noeot"
+    lambda_tag = format_lambda_tag(args.lambda_task, args.lambda_uid, args.lambda_reg)
+    combined_tag = f"{args.eot_tag}_{lambda_tag}"
+
+    if args.perturbation_path is None:
+        perturbation_dir = args.delta_root / args.dataset / args.model
+        perturbation_name = f"{combined_tag}_seed{args.seed}_TestWOEOT.pth"
+        perturbation_path = perturbation_dir / perturbation_name
+    else:
+        perturbation_path = Path(args.perturbation_path)
     args.perturbation_path = perturbation_path
 
     if args.save_model is not None:
         os.makedirs(args.save_model, exist_ok=True)
     log_dir = args.log_root / args.dataset / args.model
     log_dir.mkdir(parents=True, exist_ok=True)
-    log_path = log_dir / f"UID_AT_{eot_tag}_eps{args.attack_eps}_k{args.attack_steps}.log"
+    run_tag = f"UID_AT_{combined_tag}_eps{args.attack_eps}_k{args.attack_steps}"
+    log_path = log_dir / f"{run_tag}.log"
     sys.stdout = Logger(log_path)
 
     print("=" * 30)
@@ -437,8 +464,11 @@ def main():
     print(f"eps    : {args.attack_eps}")
     print(f"steps  : {args.attack_steps}")
     print(f"alpha  : {args.attack_alpha}")
+    print(f"random : {args.attack_random_start}")
     print(f"norm   : {args.attack_norm}")
-    print(f"eot    : {args.eot_tag}")
+    print(f"eot    : disabled")
+    print(f"lambda : task={args.lambda_task}, uid={args.lambda_uid}, reg={args.lambda_reg}")
+    print(f"delta  : {args.perturbation_path}")
 
     perturber = _load_perturber(Path(args.perturbation_path), args.device)
 
@@ -478,7 +508,7 @@ def main():
     df = np.round(final_results, 4)
     csv_dir = args.csv_root / args.dataset
     os.makedirs(csv_dir, exist_ok=True)
-    csv_name = f"UID_AT_{args.model}_eps{args.attack_eps}_k{args.attack_steps}_{args.eot_tag}.csv"
+    csv_name = f"{run_tag}.csv"
     np.savetxt(csv_dir / csv_name, df, delimiter=",", fmt="%.4f")
     print(f"Saved summary CSV to {csv_dir / csv_name}")
 
