@@ -5,7 +5,7 @@ set -euo pipefail
 # It mirrors the EOT combinations used in distillation to ensure the
 # correct STFT perturbation checkpoints are picked up by Distill_Attack.py.
 
-echo "Distill Attack Experiments (EOT disabled; PGD sweep)"
+echo "Distill Attack Experiments"
 
 # Data / model grids
 datasets=("Rest" "Transient" "Steady" "Motor")
