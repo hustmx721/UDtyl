@@ -390,8 +390,8 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--perturbation_path", type=Path, required=True, help="Checkpoint containing the STFT delta")
     parser.add_argument("--attack_norm", type=str, choices=["linf", "l2"], default="linf")
     parser.add_argument("--attack_eps", type=float, default=0.1)
-    parser.add_argument("--attack_steps", type=int, default=7)
-    parser.add_argument("--attack_alpha", type=float, default=None, help="Step size for PGD; defaults to 1.5*eps/steps")
+    parser.add_argument("--attack_steps", type=int, default=5)
+    parser.add_argument("--attack_alpha", type=float, default=0.01, help="Step size for PGD")
     parser.add_argument("--attack_random_start", action="store_true", help="Use random PGD initialization")
     parser.add_argument("--attack_clip_min", type=float, default=None)
     parser.add_argument("--attack_clip_max", type=float, default=None)
@@ -400,12 +400,16 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--csv_root", type=Path, default=default_csv_root)
     parser.add_argument("--save_model", type=Path, default=None, help="Directory to store best checkpoints")
     parser.add_argument("--torch_threads", type=int, default=4, help="Max torch threads")
+    
     return parser
+
+
 
 
 def main():
     parser = build_argument_parser()
     args = parser.parse_args()
+    project_root = Path(__file__).resolve().parent
 
     apply_thread_limits(getattr(args, "torch_threads", 4))
     args.device = torch.device(f"cuda:{args.gpuid}" if torch.cuda.is_available() else "cpu")
@@ -415,6 +419,10 @@ def main():
 
     eot_tag = describe_eot(args)
     args.eot_tag = eot_tag
+    
+    perturbation_name = eot_tag + "_" + f"lt1.0_lu5.0_lr0.001_seed{args.seed}.pth"
+    perturbation_path = project_root / args.dataset / args.model / perturbation_name
+    args.perturbation_path = perturbation_path
 
     if args.save_model is not None:
         os.makedirs(args.save_model, exist_ok=True)
