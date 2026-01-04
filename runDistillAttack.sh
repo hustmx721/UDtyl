@@ -11,22 +11,23 @@ echo "Distill Attack Experiments"
 datasets=("Rest" "Transient" "Steady" "Motor")
 models=("EEGNet" "DeepConvNet" "ShallowConvNet")
 
-# Each entry enables exactly one EOT transform; others are disabled for that run.
-eot_modes=(
-  "none"
-  "shift"
-  "scale"
-  "channel_dropout"
-  "resample"
+# EOT disabled for all runs to match the request.
+eot_flags=(
+  --disable_eot
 )
 
 gpus=(0 1 2)
 
-# PGD defaults (aligned with Distill_Attack.py recommendations)
-attack_eps=0.1
-attack_steps=10
-attack_norm="linf"
-# We keep attack_alpha unset to allow the script default (1.5*eps/steps).
+# Multiple PGD settings. attack_alpha is left unset to use Distill_Attack.py's auto rule.
+# Format: "eps steps norm random_start"
+attack_configs=(
+  "0.01 5 linf true"
+  "0.03 5 linf true"
+  "0.05 5 linf true"
+  "0.01 5 l2 true"
+  "0.03 5 l2 true"
+  "0.05 5 l2 true"
+)
 
 # Distillation hyperparameters used for locating the STFT delta.
 # These must match the settings used when running main_Distill.py.
@@ -63,64 +64,13 @@ wait_one() {
 
 for dataset in "${datasets[@]}"; do
   for model in "${models[@]}"; do
-    for eot in "${eot_modes[@]}"; do
-      gpu_id=${gpus[$(( job_idx % ${#gpus[@]} ))]}
-      job_idx=$((job_idx + 1))
+    gpu_id=${gpus[$(( job_idx % ${#gpus[@]} ))]}
+    job_idx=$((job_idx + 1))
 
-      case "$eot" in
-        "none")
-          eot_flags=(
-            --eot_shift 0
-            --eot_shift_prob 0.0
-            --eot_scale_prob 0.0
-            --eot_channel_dropout 0.0 --eot_channel_dropout_prob 0.0
-            --eot_resample 0.0 --eot_resample_prob 0.0
-          )
-          ;;
-        "shift")
-          eot_flags=(
-            --eot_shift 16
-            --eot_shift_prob 1.0
-            --eot_scale_min 0.0 --eot_scale_max 0.0 --eot_scale_prob 0.0
-            --eot_channel_dropout 0.0 --eot_channel_dropout_prob 0.0
-            --eot_resample 0.0 --eot_resample_prob 0.0
-          )
-          ;;
-        "scale")
-          eot_flags=(
-            --eot_shift 0
-            --eot_shift_prob 0.0
-            --eot_scale
-            --eot_scale_min 0.95 --eot_scale_max 1.05 --eot_scale_prob 1.0
-            --eot_channel_dropout 0.0 --eot_channel_dropout_prob 0.0
-            --eot_resample 0.0 --eot_resample_prob 0.0
-          )
-          ;;
-        "channel_dropout")
-          eot_flags=(
-            --eot_shift 0
-            --eot_shift_prob 0.0
-            --eot_channel_dropout 0.1 --eot_channel_dropout_prob 1.0
-            --eot_scale_prob 0.0
-            --eot_resample 0.0 --eot_resample_prob 0.0
-          )
-          ;;
-        "resample")
-          eot_flags=(
-            --eot_shift 0
-            --eot_shift_prob 0.0
-            --eot_channel_dropout 0.0 --eot_channel_dropout_prob 0.0
-            --eot_scale_prob 0.0
-            --eot_resample 0.05 --eot_resample_prob 1.0
-          )
-          ;;
-        *)
-          echo "Unknown EOT mode: $eot" >&2
-          exit 1
-          ;;
-      esac
+    echo "Launch: dataset=${dataset}, model=${model}, gpu=${gpu_id}, attacks=${#attack_configs[@]}"
 
-      echo "Launch: dataset=${dataset}, model=${model}, eot=${eot}, gpu=${gpu_id}"
+    for attack_cfg in "${attack_configs[@]}"; do
+      read -r attack_eps attack_steps attack_norm attack_random <<<"${attack_cfg}"
 
       python -u Distill_Attack.py \
         --dataset "${dataset}" \
@@ -134,6 +84,7 @@ for dataset in "${datasets[@]}"; do
         --attack_norm "${attack_norm}" \
         --seed "${seed}" \
         --repeats "${repeats}" \
+        "${attack_random:+--attack_random_start}" \
         "${eot_flags[@]}" &
 
       pid=$!

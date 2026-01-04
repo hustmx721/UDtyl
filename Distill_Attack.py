@@ -378,7 +378,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--earlystop", type=int, default=30)
     parser.add_argument("--seed", type=int, default=2024)
     parser.add_argument("--repeats", type=int, default=5)
-    parser.add_argument("--disable_eot", action="store_true", help="Disable EOT when regenerating UD data")
+    parser.add_argument("--disable_eot", action="store_true", default=True, help="Disable EOT when regenerating UD data")
     parser.add_argument("--n_fft", type=int, default=256)
     parser.add_argument("--hop_length", type=int, default=None)
     parser.add_argument("--eot_shift", type=int, default=16)
@@ -438,8 +438,7 @@ def main():
     if args.attack_alpha is None:
         args.attack_alpha = 1.5 * args.attack_eps / max(1, args.attack_steps)
 
-    eot_tag = describe_eot(args)
-    args.eot_tag = eot_tag
+    args.eot_tag = "noeot"
     lambda_tag = format_lambda_tag(args.lambda_task, args.lambda_uid, args.lambda_reg)
     combined_tag = f"{args.eot_tag}_{lambda_tag}"
 
@@ -467,7 +466,7 @@ def main():
     print(f"alpha  : {args.attack_alpha}")
     print(f"random : {args.attack_random_start}")
     print(f"norm   : {args.attack_norm}")
-    print(f"eot    : {args.eot_tag}")
+    print(f"eot    : disabled")
     print(f"lambda : task={args.lambda_task}, uid={args.lambda_uid}, reg={args.lambda_reg}")
     print(f"delta  : {args.perturbation_path}")
 
