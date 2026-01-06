@@ -152,7 +152,7 @@ def pgd_attack(
     for _ in range(steps):
         x_adv.requires_grad_(True)
         logits = model(x_adv)
-        loss = loss_fn(logits, y)
+        loss = loss_fn(logits, y.long())
         grad = torch.autograd.grad(loss, x_adv, retain_graph=False, create_graph=False)[0]
 
         if norm == "l2":

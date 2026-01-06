@@ -16,7 +16,7 @@ eot_flags=(
   --disable_eot
 )
 
-gpus=(0 1 2)
+gpus=(1 2 3 4 5 6)
 
 # Multiple PGD settings. attack_alpha is left unset to use Distill_Attack.py's auto rule.
 # Format: "eps steps norm random_start"
@@ -37,9 +37,9 @@ lambda_reg=0.001
 
 # Only run the base seed per job to match the saved delta filename.
 seed=2024
-repeats=1
+repeats=5
 
-max_jobs=3
+max_jobs=6
 jobs=()
 job_idx=0
 failed=0
