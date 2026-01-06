@@ -454,7 +454,7 @@ def main():
         os.makedirs(args.save_model, exist_ok=True)
     log_dir = args.log_root / args.dataset / args.model
     log_dir.mkdir(parents=True, exist_ok=True)
-    run_tag = f"UID_AT_{combined_tag}_eps{args.attack_eps}_k{args.attack_steps}"
+    run_tag = f"{args.model}_UID_AT_{combined_tag}_norm{args.attack_norm}_eps{args.attack_eps}_k{args.attack_steps}"
     log_path = log_dir / f"{run_tag}.log"
     sys.stdout = Logger(log_path)
 
@@ -506,7 +506,7 @@ def main():
 
     final_results = np.vstack([test_results, np.mean(test_results, axis=0), np.std(test_results, axis=0)])
     df = np.round(final_results, 4)
-    csv_dir = args.csv_root / args.dataset
+    csv_dir = args.csv_root / args.dataset / args.model
     os.makedirs(csv_dir, exist_ok=True)
     csv_name = f"{run_tag}.csv"
     np.savetxt(csv_dir / csv_name, df, delimiter=",", fmt="%.4f")
