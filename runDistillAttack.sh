@@ -64,13 +64,12 @@ wait_one() {
 
 for dataset in "${datasets[@]}"; do
   for model in "${models[@]}"; do
-    gpu_id=${gpus[$(( job_idx % ${#gpus[@]} ))]}
-    job_idx=$((job_idx + 1))
-
-    echo "Launch: dataset=${dataset}, model=${model}, gpu=${gpu_id}, attacks=${#attack_configs[@]}"
+    echo "Launch: dataset=${dataset}, model=${model}, attacks=${#attack_configs[@]}"
 
     for attack_cfg in "${attack_configs[@]}"; do
       read -r attack_eps attack_steps attack_norm attack_random <<<"${attack_cfg}"
+      gpu_id=${gpus[$(( job_idx % ${#gpus[@]} ))]}
+      job_idx=$((job_idx + 1))
 
       python -u Distill_Attack.py \
         --dataset "${dataset}" \
