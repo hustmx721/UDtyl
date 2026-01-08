@@ -454,7 +454,7 @@ def main():
         os.makedirs(args.save_model, exist_ok=True)
     log_dir = args.log_root / args.dataset / args.model
     log_dir.mkdir(parents=True, exist_ok=True)
-    run_tag = f"{args.model}_UID_AT_{combined_tag}_norm{args.attack_norm}_eps{args.attack_eps}_k{args.attack_steps}"
+    run_tag = f"UID_AT_{combined_tag}_{args.model}_norm{args.attack_norm}_eps{args.attack_eps}_k{args.attack_steps}"
     log_path = log_dir / f"{run_tag}.log"
     sys.stdout = Logger(log_path)
 
