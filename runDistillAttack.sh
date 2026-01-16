@@ -29,16 +29,6 @@ attack_configs=(
   "0.05 5 l2 true"
 )
 
-# Distillation hyperparameters used for locating the STFT delta.
-# These must match the settings used when running main_Distill.py.
-lambda_task=1.0
-lambda_uid=5.0
-lambda_reg=0.001
-
-# Only run the base seed per job to match the saved delta filename.
-seed=2024
-repeats=5
-
 max_jobs=6
 jobs=()
 job_idx=0
@@ -75,14 +65,9 @@ for dataset in "${datasets[@]}"; do
         --dataset "${dataset}" \
         --gpuid "${gpu_id}" \
         --model "${model}" \
-        --lambda_task "${lambda_task}" \
-        --lambda_uid "${lambda_uid}" \
-        --lambda_reg "${lambda_reg}" \
         --attack_eps "${attack_eps}" \
         --attack_steps "${attack_steps}" \
         --attack_norm "${attack_norm}" \
-        --seed "${seed}" \
-        --repeats "${repeats}" \
         "${attack_random:+--attack_random_start}" \
         "${eot_flags[@]}" &
 

@@ -398,7 +398,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--lambda_uid", type=float, default=5.0, help="UID weight used in distillation (for checkpoint naming)")
     parser.add_argument("--lambda_reg", type=float, default=1e-3, help="Reg weight used in distillation (for checkpoint naming)")
     parser.add_argument("--attack_norm", type=str, choices=["linf", "l2"], default="linf")
-    parser.add_argument("--attack_eps", type=float, default=0.1, help="Recommended: 0.1–0.2 for normalized inputs")
+    parser.add_argument("--attack_eps", type=float, default=0.01, help="Recommended: 0.1–0.2 for normalized inputs")
     parser.add_argument("--attack_steps", type=int, default=10, help="PGD iterations (10 is a strong default)")
     parser.add_argument("--attack_alpha", type=float, default=None, help="Step size for PGD (defaults to 1.5*eps/steps)")
     parser.add_argument("--attack_random_start", action="store_true", default=True, help="Use random PGD initialization")
@@ -424,15 +424,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
     
     return parser
 
-
-
-
 def main():
     parser = build_argument_parser()
     args = parser.parse_args()
     project_root = Path(__file__).resolve().parent
 
-    apply_thread_limits(getattr(args, "torch_threads", 4))
+    apply_thread_limits(getattr(args, "torch_threads", 10))
     args.device = torch.device(f"cuda:{args.gpuid}" if torch.cuda.is_available() else "cpu")
 
     if args.attack_alpha is None:
@@ -444,7 +441,7 @@ def main():
 
     if args.perturbation_path is None:
         perturbation_dir = args.delta_root / args.dataset / args.model
-        perturbation_name = f"{combined_tag}_seed{args.seed}_TestWOEOT.pth"
+        perturbation_name = f"{combined_tag}_seed{args.seed}.pth"
         perturbation_path = perturbation_dir / perturbation_name
     else:
         perturbation_path = Path(args.perturbation_path)
