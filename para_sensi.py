@@ -125,7 +125,11 @@ def _build_parameter_sweep(args: argparse.Namespace) -> List[Tuple[str, float, H
 
 
 def _prepare_trial_args(
-    base_args: argparse.Namespace, sample: HyperSample, seed: int
+    base_args: argparse.Namespace,
+    sample: HyperSample,
+    seed: int,
+    param_name: str,
+    param_value: float,
 ) -> argparse.Namespace:
     """Clone base args and inject the sampled hyperparameters for one trial."""
 
@@ -147,7 +151,9 @@ def _prepare_trial_args(
     para_root = base_args.para_root
     trial_args.model_root = para_root / "model"
     trial_args.csv_root = para_root / "csv"
-    trial_args.save_delta = str(para_root / "pth")
+    safe_value = _format_param_value(param_value)
+    delta_root = para_root / "pth" / base_args.dataset / base_args.task_model / param_name / safe_value
+    trial_args.save_delta = str(delta_root)
 
     return trial_args
 
@@ -222,7 +228,7 @@ def run_single_configuration(
     uid_vals: List[float] = []
 
     for seed in seeds:
-        trial_args = _prepare_trial_args(base_args, sample, seed)
+        trial_args = _prepare_trial_args(base_args, sample, seed, param_name, param_value)
         metrics = train_distillation(trial_args)
 
         task_clean_vals.append(_extract_metric(metrics["teacher_clean"], metric_idx))
