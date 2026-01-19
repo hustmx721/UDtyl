@@ -8,15 +8,16 @@ set -euo pipefail
 echo "Distill Attack Experiments"
 
 # Data / model grids
-datasets=("Rest" "Transient" "Steady" "Motor")
-models=("EEGNet" "DeepConvNet" "ShallowConvNet")
-
+# datasets=("Rest" "Transient" "Steady" "Motor")
+# models=("EEGNet" "DeepConvNet" "ShallowConvNet")
+datasets=("Motor")
+models=("ShallowConvNet")
 # EOT disabled for all runs to match the request.
 eot_flags=(
   --disable_eot
 )
 
-gpus=(1 2 3 4 5 6)
+gpus=(0 1 2 3 4 5)
 
 # Multiple PGD settings. attack_alpha is left unset to use Distill_Attack.py's auto rule.
 # Format: "eps steps norm random_start"
