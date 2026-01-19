@@ -143,9 +143,9 @@ def _prepare_trial_args(
     # Map the aggregated p_eot to the per-transform probabilities.
     trial_args.disable_eot = math.isclose(base_args.p_eot, 0.0, abs_tol=1e-8)
     prob = base_args.p_eot
-    trial_args.eot_shift_prob = prob
-    trial_args.eot_scale_prob = prob
-    trial_args.eot_channel_dropout_prob = prob
+    trial_args.eot_shift_prob = 0.0
+    trial_args.eot_scale_prob = 0.0
+    trial_args.eot_channel_dropout_prob = 0.0
     trial_args.eot_resample_prob = prob
 
     para_root = base_args.para_root
@@ -400,7 +400,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--lambda-uid-values",
         type=float,
         nargs="+",
-        default=[1.0, 2.0, 4.0, 8.0],
+        default=[1.0, 2.0, 5.0, 8.0],
         help="Discrete sweep values for λ_uid",
     )
     base.add_argument(
@@ -425,7 +425,7 @@ def build_parser() -> argparse.ArgumentParser:
     base.add_argument(
         "--base-lambda-uid",
         type=float,
-        default=2.0,
+        default=5.0,
         help="Fixed λ_uid when sweeping other parameters",
     )
     base.add_argument(
@@ -437,7 +437,7 @@ def build_parser() -> argparse.ArgumentParser:
     base.add_argument(
         "--p-eot",
         type=float,
-        default=0.0,
+        default=1.0,
         help="Fixed EOT application probability (0 disables EOT)",
     )
     base.add_argument(
