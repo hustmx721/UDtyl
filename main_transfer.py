@@ -159,7 +159,7 @@ def _candidate_delta_paths(
     base_dir = delta_root / dataset / src_model
     names = []
     for tag in tags:
-        names.append(base_dir / f"{tag}_seed{seed}_TestWOEOT.pth")
+        # names.append(base_dir / f"{tag}_seed{seed}_TestWOEOT.pth")
         names.append(base_dir / f"{tag}_seed{seed}.pth")
     return names
 
@@ -169,10 +169,8 @@ def resolve_delta_path(args: argparse.Namespace, seed: int) -> Path:
         return Path(args.perturbation_path)
 
     lambda_tag = format_lambda_tag(args.lambda_task, args.lambda_uid, args.lambda_reg)
-    tags = []
-    if args.delta_tag:
-        tags.append(args.delta_tag)
-    tags.extend([f"{describe_eot(args)}_{lambda_tag}", f"noeot_{lambda_tag}"])
+    tag = f"{describe_eot(args)}_{lambda_tag}"
+    tags = [tag]
     candidates = _candidate_delta_paths(args.delta_root, args.dataset, args.src_model, seed, tags)
     for candidate in candidates:
         if candidate.is_file():
@@ -182,13 +180,12 @@ def resolve_delta_path(args: argparse.Namespace, seed: int) -> Path:
         "Could not find perturbation checkpoint. Tried:\n" + joined
     )
 
-
 def resolve_tgt_checkpoint(args: argparse.Namespace, seed: int) -> Path:
     if args.tgt_checkpoint is not None:
         return Path(args.tgt_checkpoint)
 
-    model_path = args.model_root / f"{args.dataset}"
-    return model_path / f"Task_{args.tgt_model}_{seed}.pth"
+    model_path = args.model_root 
+    return model_path / f"UID_Teacher_{args.tgt_model}_{args.dataset}_{seed}.pth"
 
 
 def run_one_seed(
@@ -197,7 +194,7 @@ def run_one_seed(
     seed: int,
 ) -> Tuple[np.ndarray, np.ndarray]:
     args.seed = seed
-    args.is_task = True
+    args.is_task = False
     args.model = args.tgt_model
     args = set_args(args)
     set_seed(seed)
@@ -244,7 +241,7 @@ def run_one_seed(
 def build_argument_parser() -> argparse.ArgumentParser:
     project_root = Path(__file__).resolve().parent
     default_log_root = project_root / "logs"
-    default_model_root = project_root / "ModelSave"
+    default_model_root = project_root / "ModelSave" / "Distiil_Pretrain"
     default_csv_root = project_root / "csv"
     default_delta_root = project_root / "ModelSave" / "Distill_Delta"
 
@@ -277,14 +274,13 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--lambda_task", type=float, default=1.0)
     parser.add_argument("--lambda_uid", type=float, default=5.0)
     parser.add_argument("--lambda_reg", type=float, default=1e-3)
-    parser.add_argument("--delta_tag", type=str, default=None, help="Optional tag override for locating delta checkpoints")
     parser.add_argument("--perturbation_path", type=Path, default=None)
     parser.add_argument("--tgt_checkpoint", type=Path, default=None)
     parser.add_argument("--log_root", type=Path, default=default_log_root)
     parser.add_argument("--model_root", type=Path, default=default_model_root)
     parser.add_argument("--csv_root", type=Path, default=default_csv_root)
     parser.add_argument("--delta_root", type=Path, default=default_delta_root)
-    parser.add_argument("--torch_threads", type=int, default=4, help="Max torch threads")
+    parser.add_argument("--torch_threads", type=int, default=10, help="Max torch threads")
     return parser
 
 
@@ -292,7 +288,7 @@ def main() -> None:
     parser = build_argument_parser()
     args = parser.parse_args()
 
-    apply_thread_limits(getattr(args, "torch_threads", 4))
+    apply_thread_limits(getattr(args, "torch_threads", 10))
     args.device = torch.device(f"cuda:{args.gpuid}" if torch.cuda.is_available() else "cpu")
 
     seeds = list(range(args.seed, args.seed + args.repeats))

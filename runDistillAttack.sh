@@ -14,7 +14,12 @@ datasets=("Motor")
 models=("ShallowConvNet")
 # EOT disabled for all runs to match the request.
 eot_flags=(
-  --disable_eot
+  # --disable_eot
+  --eot_shift 0
+  --eot_shift_prob 0.0
+  --eot_channel_dropout 0.0 --eot_channel_dropout_prob 0.0
+  --eot_scale_prob 0.0
+  --eot_resample 0.05 --eot_resample_prob 1.0
 )
 
 gpus=(0 1 2 3 4 5)
