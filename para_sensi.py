@@ -42,9 +42,9 @@ from utils.init_all import apply_thread_limits
 
 METRIC_INDEX = {
     "acc": 0,
-    "f1": 1,
+    "wf1": 1,
     "bca": 2,
-    "eer": 3,
+    "weer": 3,
 }
 
 

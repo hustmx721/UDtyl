@@ -6,7 +6,7 @@ echo "Transfer Experiments"
 datasets=("Rest" "Transient" "Steady" "Motor")
 models=("EEGNet" "DeepConvNet" "ShallowConvNet")
 eot_tags=("resample")
-gpus=(0 1 2)
+gpus=(0 1 2 3 4 5)
 
 max_jobs=6
 jobs=()

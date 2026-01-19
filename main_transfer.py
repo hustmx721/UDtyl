@@ -185,8 +185,7 @@ def resolve_tgt_checkpoint(args: argparse.Namespace, seed: int) -> Path:
         return Path(args.tgt_checkpoint)
 
     model_path = args.model_root 
-    return model_path / f"UID_Teacher_{args.tgt_model}_{args.dataset}_{seed}.pth"
-
+    return model_path / f"UID_Teacher_{args.tgt_model}_{args.dataset}_seed{seed}.pth"
 
 def run_one_seed(
     args: argparse.Namespace,
@@ -241,7 +240,7 @@ def run_one_seed(
 def build_argument_parser() -> argparse.ArgumentParser:
     project_root = Path(__file__).resolve().parent
     default_log_root = project_root / "logs"
-    default_model_root = project_root / "ModelSave" / "Distiil_Pretrain"
+    default_model_root = project_root / "ModelSave" / "Distill_Pretrain"
     default_csv_root = project_root / "csv"
     default_delta_root = project_root / "ModelSave" / "Distill_Delta"
 
@@ -361,7 +360,7 @@ def main() -> None:
     final_ud = np.vstack([ud_results, np.mean(ud_results, axis=0), np.std(ud_results, axis=0)])
     combined = np.hstack([final_clean, final_ud])
 
-    csv_dir = args.csv_root / args.dataset / f"transfer_{args.src_model}_to_{args.tgt_model}"
+    csv_dir = args.csv_root / args.dataset / "Transfer" / f"{args.src_model}_to_{args.tgt_model}"
     os.makedirs(csv_dir, exist_ok=True)
     csv_name = f"{run_tag}.csv"
     np.savetxt(csv_dir / csv_name, np.round(combined, 4), delimiter=",", fmt="%.4f")
