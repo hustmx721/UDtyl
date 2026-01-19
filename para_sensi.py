@@ -1,19 +1,17 @@
 """Privacy–Utility Pareto sensitivity experiment.
 
-This script automates the hyperparameter sampling strategy described in the
-user request:
+This script performs a one-at-a-time sweep for four hyperparameters:
 
-* Sample key hyperparameters (``epsilon_delta``, ``lambda_reg``, ``lambda_uid``,
-  ``lambda_task``, ``p_eot``) using log-uniform distributions or discrete
-  grids.
-* Run the two-stage pipeline per configuration:
-  1) Optimize the frequency-domain perturbation (Stage-1, delta only).
-  2) Train/evaluate downstream task and UID models from scratch (Stage-2).
-* Aggregate metrics across multiple seeds per configuration.
-* Compute and plot the Pareto front (utility vs. privacy) using both the
-  suggested (Task drop, UID drop) visualization and the conventional
-  (Task metric, 1-UID metric) dominance check.
-* Report a stability region based on user-provided drop thresholds.
+* ``epsilon_delta``
+* ``lambda_reg``
+* ``lambda_uid``
+* ``lambda_task``
+
+For each sweep dimension, the remaining three parameters are fixed to
+user-provided base values. Every configuration is run across multiple seeds
+to compute utility/privacy statistics. Per-run CSVs are saved under a dedicated
+``para`` folder (model/csv/pth), and a global summary CSV is written before
+rendering the Pareto front plot.
 
 The implementation reuses the distillation pipeline defined in
 ``main_Distill.py`` to ensure consistent training budgets and teacher/UID
@@ -24,7 +22,7 @@ from __future__ import annotations
 
 import argparse
 import math
-import random
+import re
 import time
 from copy import deepcopy
 from dataclasses import dataclass
@@ -32,6 +30,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Sequence, Tuple
 
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 import numpy as np
 import pandas as pd
 
@@ -54,41 +53,83 @@ class HyperSample:
     lambda_reg: float
     lambda_uid: float
     lambda_task: float
-    p_eot: float
 
 
-def _log_uniform(rng: random.Random, low: float, high: float) -> float:
-    """Sample log-uniformly between ``low`` and ``high`` (inclusive)."""
-
-    if low <= 0 or high <= 0:
-        raise ValueError("Log-uniform bounds must be positive.")
-    if low > high:
-        raise ValueError("Low bound must not exceed high bound.")
-    log_low = math.log10(low)
-    log_high = math.log10(high)
-    return 10 ** rng.uniform(log_low, log_high)
+def _format_param_value(value: float) -> str:
+    raw = f"{value:.6g}"
+    return re.sub(r"[^0-9a-zA-Z]+", "_", raw)
 
 
-def sample_hyperparameters(rng: random.Random, args: argparse.Namespace) -> HyperSample:
-    """Draw one hyperparameter configuration following the recommended priors."""
-
-    epsilon_delta = _log_uniform(rng, args.epsilon_min, args.epsilon_max)
-    lambda_reg = _log_uniform(rng, args.lambda_reg_min, args.lambda_reg_max)
-    lambda_uid = _log_uniform(rng, args.lambda_uid_min, args.lambda_uid_max)
-    lambda_task = _log_uniform(rng, args.lambda_task_min, args.lambda_task_max)
-    p_eot = rng.choice(args.p_eot_choices)
-
-    return HyperSample(
-        epsilon_delta=epsilon_delta,
-        lambda_reg=lambda_reg,
-        lambda_uid=lambda_uid,
-        lambda_task=lambda_task,
-        p_eot=float(p_eot),
+def _build_parameter_sweep(args: argparse.Namespace) -> List[Tuple[str, float, HyperSample]]:
+    base = HyperSample(
+        epsilon_delta=args.base_epsilon_delta,
+        lambda_reg=args.base_lambda_reg,
+        lambda_uid=args.base_lambda_uid,
+        lambda_task=args.base_lambda_task,
     )
+
+    sweep: List[Tuple[str, float, HyperSample]] = []
+    for value in args.epsilon_values:
+        sweep.append(
+            (
+                "epsilon_delta",
+                value,
+                HyperSample(
+                    epsilon_delta=value,
+                    lambda_reg=base.lambda_reg,
+                    lambda_uid=base.lambda_uid,
+                    lambda_task=base.lambda_task,
+                ),
+            )
+        )
+    for value in args.lambda_reg_values:
+        sweep.append(
+            (
+                "lambda_reg",
+                value,
+                HyperSample(
+                    epsilon_delta=base.epsilon_delta,
+                    lambda_reg=value,
+                    lambda_uid=base.lambda_uid,
+                    lambda_task=base.lambda_task,
+                ),
+            )
+        )
+    for value in args.lambda_uid_values:
+        sweep.append(
+            (
+                "lambda_uid",
+                value,
+                HyperSample(
+                    epsilon_delta=base.epsilon_delta,
+                    lambda_reg=base.lambda_reg,
+                    lambda_uid=value,
+                    lambda_task=base.lambda_task,
+                ),
+            )
+        )
+    for value in args.lambda_task_values:
+        sweep.append(
+            (
+                "lambda_task",
+                value,
+                HyperSample(
+                    epsilon_delta=base.epsilon_delta,
+                    lambda_reg=base.lambda_reg,
+                    lambda_uid=base.lambda_uid,
+                    lambda_task=value,
+                ),
+            )
+        )
+    return sweep
 
 
 def _prepare_trial_args(
-    base_args: argparse.Namespace, sample: HyperSample, seed: int
+    base_args: argparse.Namespace,
+    sample: HyperSample,
+    seed: int,
+    param_name: str,
+    param_value: float,
 ) -> argparse.Namespace:
     """Clone base args and inject the sampled hyperparameters for one trial."""
 
@@ -99,16 +140,66 @@ def _prepare_trial_args(
     trial_args.lambda_uid = sample.lambda_uid
     trial_args.lambda_task = sample.lambda_task
 
-    # Map the aggregated p_eot to the per-transform probabilities. Disable EOT
-    # entirely when p_eot == 0 to satisfy the discrete grid requirement.
-    trial_args.disable_eot = math.isclose(sample.p_eot, 0.0, abs_tol=1e-8)
-    prob = sample.p_eot
+    # Map the aggregated p_eot to the per-transform probabilities.
+    trial_args.disable_eot = math.isclose(base_args.p_eot, 0.0, abs_tol=1e-8)
+    prob = base_args.p_eot
     trial_args.eot_shift_prob = prob
     trial_args.eot_scale_prob = prob
     trial_args.eot_channel_dropout_prob = prob
     trial_args.eot_resample_prob = prob
 
+    para_root = base_args.para_root
+    trial_args.model_root = para_root / "model"
+    trial_args.csv_root = para_root / "csv"
+    safe_value = _format_param_value(param_value)
+    delta_root = para_root / "pth" / base_args.dataset / base_args.task_model / param_name / safe_value
+    trial_args.save_delta = str(delta_root)
+
     return trial_args
+
+
+def _save_configuration_csv(
+    args: argparse.Namespace,
+    param_name: str,
+    param_value: float,
+    sample: HyperSample,
+    seeds: Sequence[int],
+    task_clean: np.ndarray,
+    uid_clean: np.ndarray,
+    task: np.ndarray,
+    uid: np.ndarray,
+    task_drop: np.ndarray,
+    uid_drop: np.ndarray,
+    privacy: np.ndarray,
+) -> None:
+    csv_root = args.para_root / "csv" / args.dataset / args.task_model
+    csv_root.mkdir(parents=True, exist_ok=True)
+    safe_value = _format_param_value(param_value)
+    csv_path = csv_root / f"para_{param_name}_{safe_value}.csv"
+    df = pd.DataFrame(
+        {
+            "seed": [str(seed) for seed in seeds],
+            "epsilon_delta": sample.epsilon_delta,
+            "lambda_reg": sample.lambda_reg,
+            "lambda_uid": sample.lambda_uid,
+            "lambda_task": sample.lambda_task,
+            "task_clean": task_clean,
+            "uid_clean": uid_clean,
+            "task": task,
+            "uid": uid,
+            "task_drop": task_drop,
+            "uid_drop": uid_drop,
+            "privacy": privacy,
+        }
+    )
+    summary = df[["task_clean", "uid_clean", "task", "uid", "task_drop", "uid_drop", "privacy"]].agg(
+        ["mean", "std"]
+    )
+    summary["seed"] = ["Avg", "Std"]
+    for name in ["epsilon_delta", "lambda_reg", "lambda_uid", "lambda_task"]:
+        summary[name] = getattr(sample, name)
+    df = pd.concat([df, summary], ignore_index=True)
+    df.to_csv(csv_path, index=False)
 
 
 def _extract_metric(metrics: Tuple[float, float, float, float], metric_idx: int) -> float:
@@ -123,6 +214,8 @@ def run_single_configuration(
     sample: HyperSample,
     seeds: Sequence[int],
     metric_idx: int,
+    param_name: str,
+    param_value: float,
 ) -> Dict[str, float]:
     """Run Stage-1/2 for a hyperparameter sample across multiple seeds.
 
@@ -135,7 +228,7 @@ def run_single_configuration(
     uid_vals: List[float] = []
 
     for seed in seeds:
-        trial_args = _prepare_trial_args(base_args, sample, seed)
+        trial_args = _prepare_trial_args(base_args, sample, seed, param_name, param_value)
         metrics = train_distillation(trial_args)
 
         task_clean_vals.append(_extract_metric(metrics["teacher_clean"], metric_idx))
@@ -151,6 +244,21 @@ def run_single_configuration(
     task_drop = task_clean - task
     uid_drop = uid_clean - uid
     privacy = 1.0 - uid
+
+    _save_configuration_csv(
+        base_args,
+        param_name,
+        param_value,
+        sample,
+        seeds,
+        task_clean,
+        uid_clean,
+        task,
+        uid,
+        task_drop,
+        uid_drop,
+        privacy,
+    )
 
     return {
         "utility_mean": float(task.mean()),
@@ -200,10 +308,13 @@ def _plot_pareto(
 
     xs = [rec["task_drop_mean"] * 100 for rec in records]
     ys = [rec["uid_drop_mean"] * 100 for rec in records]
-    colors = [rec["p_eot"] for rec in records]
+    param_names = [rec["param_name"] for rec in records]
+    unique_params = sorted(set(param_names))
+    param_to_idx = {name: idx for idx, name in enumerate(unique_params)}
+    colors = [param_to_idx[name] for name in param_names]
 
     fig, ax = plt.subplots(figsize=(8, 6))
-    scatter = ax.scatter(xs, ys, c=colors, cmap="viridis", alpha=0.8, edgecolor="k", linewidth=0.5)
+    scatter = ax.scatter(xs, ys, c=colors, cmap="tab10", alpha=0.8, edgecolor="k", linewidth=0.5)
 
     for rec in records:
         ax.errorbar(
@@ -225,10 +336,12 @@ def _plot_pareto(
     ax.set_xlabel("Task drop (%) ↓")
     ax.set_ylabel("UID drop (%) ↑")
     ax.set_title("Privacy–Utility Pareto front (hyperparameter sensitivity)")
-    cbar = fig.colorbar(scatter, ax=ax, label="p_eot")
-    cbar.ax.set_ylabel("EOT apply probability", rotation=270, labelpad=15)
+    handles = [
+        Line2D([0], [0], marker="o", color="w", label=name, markerfacecolor=scatter.cmap(param_to_idx[name]))
+        for name in unique_params
+    ]
     ax.grid(True, linestyle="--", alpha=0.3)
-    ax.legend()
+    ax.legend(handles=handles, title="Varied parameter")
 
     fig.tight_layout()
     fig.savefig(output_path, dpi=300)
@@ -255,35 +368,77 @@ def _stable_region_statement(
         f"在 Task drop ≤ {task_drop_limit*100:.1f}% 区间内仍能实现 UID drop ≥ {uid_drop_limit*100:.1f}%，"
         "表明方法不依赖精细调参。"
         f" 代表性点：ε_Δ={best['epsilon_delta']:.3g}, λ_reg={best['lambda_reg']:.3g},"
-        f" λ_uid={best['lambda_uid']:.3g}, λ_task={best['lambda_task']:.3g}, p_eot={best['p_eot']}。"
+        f" λ_uid={best['lambda_uid']:.3g}, λ_task={best['lambda_task']:.3g}。"
     )
 
 
 def build_parser() -> argparse.ArgumentParser:
     base = build_distill_parser()
     base.description = "Hyperparameter sensitivity sweep for privacy–utility Pareto analysis"
-    base.add_argument("--samples", type=int, default=30, help="Number of hyperparameter configurations to sample")
+    base.add_argument("--para-root", type=Path, default=Path("para"), help="Root directory for para outputs")
     base.add_argument(
         "--seeds-per-sample",
         type=int,
         default=3,
         help="Number of random seeds to average per configuration",
     )
-    base.add_argument("--sweep-seed", type=int, default=13, help="Random seed for hyperparameter sampling")
-    base.add_argument("--epsilon-min", type=float, default=0.01, help="Lower bound for ε_Δ (log-uniform)")
-    base.add_argument("--epsilon-max", type=float, default=1.0, help="Upper bound for ε_Δ (log-uniform)")
-    base.add_argument("--lambda-reg-min", type=float, default=1e-5, help="Lower bound for λ_reg (log-uniform)")
-    base.add_argument("--lambda-reg-max", type=float, default=1e-1, help="Upper bound for λ_reg (log-uniform)")
-    base.add_argument("--lambda-uid-min", type=float, default=1e-2, help="Lower bound for λ_uid (log-uniform)")
-    base.add_argument("--lambda-uid-max", type=float, default=10.0, help="Upper bound for λ_uid (log-uniform)")
-    base.add_argument("--lambda-task-min", type=float, default=1e-2, help="Lower bound for λ_task (log-uniform)")
-    base.add_argument("--lambda-task-max", type=float, default=10.0, help="Upper bound for λ_task (log-uniform)")
     base.add_argument(
-        "--p-eot-choices",
+        "--epsilon-values",
         type=float,
         nargs="+",
-        default=[0.0, 0.25, 0.5, 0.75, 1.0],
-        help="Discrete choices for EOT application probability",
+        default=[0.1, 0.5, 1.0, 5.0],
+        help="Discrete sweep values for ε_Δ",
+    )
+    base.add_argument(
+        "--lambda-reg-values",
+        type=float,
+        nargs="+",
+        default=[1e-4, 1e-3, 1e-2, 1e-1],
+        help="Discrete sweep values for λ_reg",
+    )
+    base.add_argument(
+        "--lambda-uid-values",
+        type=float,
+        nargs="+",
+        default=[1.0, 2.0, 4.0, 8.0],
+        help="Discrete sweep values for λ_uid",
+    )
+    base.add_argument(
+        "--lambda-task-values",
+        type=float,
+        nargs="+",
+        default=[0.5, 1.0, 2.0, 4.0],
+        help="Discrete sweep values for λ_task",
+    )
+    base.add_argument(
+        "--base-epsilon-delta",
+        type=float,
+        default=1.0,
+        help="Fixed ε_Δ when sweeping other parameters",
+    )
+    base.add_argument(
+        "--base-lambda-reg",
+        type=float,
+        default=1e-3,
+        help="Fixed λ_reg when sweeping other parameters",
+    )
+    base.add_argument(
+        "--base-lambda-uid",
+        type=float,
+        default=2.0,
+        help="Fixed λ_uid when sweeping other parameters",
+    )
+    base.add_argument(
+        "--base-lambda-task",
+        type=float,
+        default=1.0,
+        help="Fixed λ_task when sweeping other parameters",
+    )
+    base.add_argument(
+        "--p-eot",
+        type=float,
+        default=0.0,
+        help="Fixed EOT application probability (0 disables EOT)",
     )
     base.add_argument(
         "--metric",
@@ -325,28 +480,28 @@ def main() -> None:
     apply_thread_limits(getattr(args, "torch_threads", 4))
 
     metric_idx = METRIC_INDEX[args.metric]
-    rng = random.Random(args.sweep_seed)
     seeds = list(range(args.seed, args.seed + args.seeds_per_sample))
 
     records: List[Dict[str, float]] = []
     start = time.time()
-    for idx in range(args.samples):
-        sample = sample_hyperparameters(rng, args)
-        summary = run_single_configuration(args, sample, seeds, metric_idx)
+    sweep = _build_parameter_sweep(args)
+    for idx, (param_name, param_value, sample) in enumerate(sweep):
+        summary = run_single_configuration(args, sample, seeds, metric_idx, param_name, param_value)
         record = {
             "id": idx,
+            "param_name": param_name,
+            "param_value": param_value,
             "epsilon_delta": sample.epsilon_delta,
             "lambda_reg": sample.lambda_reg,
             "lambda_uid": sample.lambda_uid,
             "lambda_task": sample.lambda_task,
-            "p_eot": sample.p_eot,
             **summary,
         }
         records.append(record)
         print(
-            f"[Sample {idx+1}/{args.samples}] ε_Δ={sample.epsilon_delta:.3g}, "
+            f"[Sample {idx+1}/{len(sweep)}] ε_Δ={sample.epsilon_delta:.3g}, "
             f"λ_reg={sample.lambda_reg:.3g}, λ_uid={sample.lambda_uid:.3g}, λ_task={sample.lambda_task:.3g}, "
-            f"p_eot={sample.p_eot} | Task drop={summary['task_drop_mean']*100:.2f}% ± {summary['task_drop_std']*100:.2f}% | "
+            f"param={param_name}({param_value}) | Task drop={summary['task_drop_mean']*100:.2f}% ± {summary['task_drop_std']*100:.2f}% | "
             f"UID drop={summary['uid_drop_mean']*100:.2f}% ± {summary['uid_drop_std']*100:.2f}%"
         )
 
@@ -355,8 +510,6 @@ def main() -> None:
     front_indices = _non_dominated_indices(utilities, privacies)
     for i, rec in enumerate(records):
         rec["on_pareto_front"] = i in front_indices
-
-    _plot_pareto(records, front_indices, args.figure_path)
 
     stable_statement = _stable_region_statement(
         records, args.stable_task_drop, args.stable_uid_drop
@@ -370,6 +523,7 @@ def main() -> None:
     result_path = Path(args.result_csv)
     result_path.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame.from_records(records).to_csv(result_path, index=False)
+    _plot_pareto(records, front_indices, args.figure_path)
     elapsed = time.time() - start
     print(f"Sweep finished in {elapsed/3600:.2f} hours. Results saved to {result_path} and {args.figure_path}.")
 
