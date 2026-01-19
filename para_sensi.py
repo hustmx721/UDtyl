@@ -35,7 +35,7 @@ import numpy as np
 import pandas as pd
 
 from main_Distill import build_argument_parser as build_distill_parser
-from main_Distill import train_distillation
+from main_Distill import train_distillation, describe_eot
 from utils.init_all import apply_thread_limits
 
 
@@ -134,6 +134,7 @@ def _prepare_trial_args(
     """Clone base args and inject the sampled hyperparameters for one trial."""
 
     trial_args = deepcopy(base_args)
+    trial_args.eot_tag = describe_eot(trial_args)
     trial_args.seed = seed
     trial_args.epsilon_a = sample.epsilon_delta
     trial_args.lambda_reg = sample.lambda_reg
