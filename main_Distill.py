@@ -310,6 +310,7 @@ def train_distillation(args: argparse.Namespace) -> None:
     set_seed(args.seed)
     args = set_args(args)
     args.disable_eot = getattr(args, "disable_eot", False)
+    args.eot_tag = getattr(args, "eot_tag", describe_eot(args))
     eot_distribution = build_eot_distribution(args)
     eot_distribution_eval = None  # Always disable EOT when evaluating/testing the perturbed samples
 
@@ -561,6 +562,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--val_interval", type=int, default=5)
     parser.add_argument("--save_delta", type=str, default=default_delta_root, help="Path to save the perturbation template")
+    parser.add_argument("--eot_tag", type=str, default=None)
     parser.add_argument("--eot_shift", type=int, default=16)
     parser.add_argument("--eot_scale", action="store_true", help="Enable amplitude scaling transform")
     parser.add_argument("--eot_scale_min", type=float, default=0.9)
@@ -588,7 +590,7 @@ def main():
     uid_results = np.zeros((len(seeds), 3))
 
     eot_tag = describe_eot(args)
-    args.eot_tag = eot_tag
+    args.eot_tag = describe_eot(args)
 
     for idx, seed in enumerate(seeds):
         args.seed = seed

@@ -5,20 +5,19 @@ echo "Distillation Experiments (set ENTRY_SCRIPT=main_Distill.py to reuse baseli
 
 entry_script="${ENTRY_SCRIPT:-main_Distill2.py}"
 
-datasets=("Rest" "Transient" "Steady" "Motor")
-models=("EEGNet" "DeepConvNet" "ShallowConvNet")
+datasets=("Motor")
+models=("ShallowConvNet")
 # models=("EEGNet")
 # Each entry enables exactly one EOT transform; others are disabled for that run.
 eot_modes=(
-  "none"
   "shift"
   "scale"
   "channel_dropout"
   "resample"
 )
-gpus=(0 1 2)
+gpus=(1 2)
 
-max_jobs=3
+max_jobs=2
 jobs=()
 job_idx=0
 failed=0
@@ -50,15 +49,6 @@ for dataset in "${datasets[@]}"; do
 
       # --------- Base: disable all transforms explicitly ----------
       case "$eot" in
-        "none")
-          eot_flags=(
-            --eot_shift 0
-            --eot_shift_prob 0.0
-            --eot_scale_prob 0.0
-            --eot_channel_dropout 0.0 --eot_channel_dropout_prob 0.0
-            --eot_resample 0.0 --eot_resample_prob 0.0
-          )
-          ;;
         "shift")
           eot_flags=(
             # eot_shift 平移步长8~32; eot_shift_prob 平移概率 <=1.0
