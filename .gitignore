@@ -2,11 +2,15 @@
 src/csv/*
 src/logs/*
 src/ModelSave/*
+src/para/*
+src/figures/*
 
 # But keep the folder structure
 !src/csv/.gitkeep
 !src/logs/.gitkeep
 !src/ModelSave/.gitkeep
+!src/para/.gitkeep
+!src/figures/.gitkeep
 
 # Other common patterns
 __pycache__/
@@ -17,3 +21,6 @@ __pycache__/
 *.npy
 *.npz
 *.csv
+*.txt
+*.pdf
+*.png

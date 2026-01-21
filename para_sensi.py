@@ -35,7 +35,7 @@ import numpy as np
 import pandas as pd
 
 from main_Distill import build_argument_parser as build_distill_parser
-from main_Distill import train_distillation
+from main_Distill import train_distillation, describe_eot
 from utils.init_all import apply_thread_limits
 
 
@@ -125,11 +125,16 @@ def _build_parameter_sweep(args: argparse.Namespace) -> List[Tuple[str, float, H
 
 
 def _prepare_trial_args(
-    base_args: argparse.Namespace, sample: HyperSample, seed: int
+    base_args: argparse.Namespace,
+    sample: HyperSample,
+    seed: int,
+    param_name: str,
+    param_value: float,
 ) -> argparse.Namespace:
     """Clone base args and inject the sampled hyperparameters for one trial."""
 
     trial_args = deepcopy(base_args)
+    trial_args.eot_tag = describe_eot(trial_args)
     trial_args.seed = seed
     trial_args.epsilon_a = sample.epsilon_delta
     trial_args.lambda_reg = sample.lambda_reg
@@ -139,15 +144,17 @@ def _prepare_trial_args(
     # Map the aggregated p_eot to the per-transform probabilities.
     trial_args.disable_eot = math.isclose(base_args.p_eot, 0.0, abs_tol=1e-8)
     prob = base_args.p_eot
-    trial_args.eot_shift_prob = prob
-    trial_args.eot_scale_prob = prob
-    trial_args.eot_channel_dropout_prob = prob
+    trial_args.eot_shift_prob = 0.0
+    trial_args.eot_scale_prob = 0.0
+    trial_args.eot_channel_dropout_prob = 0.0
     trial_args.eot_resample_prob = prob
 
     para_root = base_args.para_root
     trial_args.model_root = para_root / "model"
     trial_args.csv_root = para_root / "csv"
-    trial_args.save_delta = str(para_root / "pth")
+    safe_value = _format_param_value(param_value)
+    delta_root = para_root / "pth" / base_args.dataset / base_args.task_model / param_name / safe_value
+    trial_args.save_delta = str(delta_root)
 
     return trial_args
 
@@ -192,7 +199,7 @@ def _save_configuration_csv(
     summary["seed"] = ["Avg", "Std"]
     for name in ["epsilon_delta", "lambda_reg", "lambda_uid", "lambda_task"]:
         summary[name] = getattr(sample, name)
-    df = pd.concat([df, summary], ignore_index=True)
+    df = pd.concat([df, summary], ignore_index=True).round(4)
     df.to_csv(csv_path, index=False)
 
 
@@ -222,7 +229,7 @@ def run_single_configuration(
     uid_vals: List[float] = []
 
     for seed in seeds:
-        trial_args = _prepare_trial_args(base_args, sample, seed)
+        trial_args = _prepare_trial_args(base_args, sample, seed, param_name, param_value)
         metrics = train_distillation(trial_args)
 
         task_clean_vals.append(_extract_metric(metrics["teacher_clean"], metric_idx))
@@ -394,7 +401,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--lambda-uid-values",
         type=float,
         nargs="+",
-        default=[1.0, 2.0, 4.0, 8.0],
+        default=[1.0, 2.0, 5.0, 8.0],
         help="Discrete sweep values for λ_uid",
     )
     base.add_argument(
@@ -419,7 +426,7 @@ def build_parser() -> argparse.ArgumentParser:
     base.add_argument(
         "--base-lambda-uid",
         type=float,
-        default=2.0,
+        default=5.0,
         help="Fixed λ_uid when sweeping other parameters",
     )
     base.add_argument(
@@ -431,7 +438,7 @@ def build_parser() -> argparse.ArgumentParser:
     base.add_argument(
         "--p-eot",
         type=float,
-        default=0.0,
+        default=1.0,
         help="Fixed EOT application probability (0 disables EOT)",
     )
     base.add_argument(
