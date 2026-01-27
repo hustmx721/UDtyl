@@ -5,10 +5,11 @@ echo "Transfer Experiments"
 
 datasets=("Rest" "Transient" "Steady" "Motor")
 models=("EEGNet" "DeepConvNet" "ShallowConvNet")
-eot_tags=("resample")
-gpus=(0 1 2 3 4 5)
+# eot_tags=("resample" "scale")
+eot_tags=("scale")
+gpus=(1 2 3)
 
-max_jobs=6
+max_jobs=12
 jobs=()
 job_idx=0
 failed=0
@@ -42,11 +43,19 @@ for dataset in "${datasets[@]}"; do
         job_idx=$((job_idx + 1))
 
         eot_flags=(
+          # resample
+          # --eot_shift 0
+          # --eot_shift_prob 0.0
+          # --eot_channel_dropout 0.0 --eot_channel_dropout_prob 0.0
+          # --eot_scale_prob 0.0
+          # --eot_resample 0.05 --eot_resample_prob 1.0
+          # scale
           --eot_shift 0
           --eot_shift_prob 0.0
+          --eot_scale
+          --eot_scale_min 0.95 --eot_scale_max 1.05 --eot_scale_prob 1.0
           --eot_channel_dropout 0.0 --eot_channel_dropout_prob 0.0
-          --eot_scale_prob 0.0
-          --eot_resample 0.05 --eot_resample_prob 1.0
+          --eot_resample 0.0 --eot_resample_prob 0.0
         )
 
         echo "Launch: dataset=${dataset}, src_model=${src_model}, tgt_model=${tgt_model}, eot=${eot}, gpu=${gpu_id}"

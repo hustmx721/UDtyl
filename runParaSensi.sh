@@ -5,8 +5,8 @@ entry_script="${ENTRY_SCRIPT:-para_sensi.py}"
 
 dataset="Motor"
 model="ShallowConvNet"
-gpus=(1 2 3 4 5 6)
-max_jobs=6
+gpus=(1 2 3 4)
+max_jobs=8
 
 seeds_per_sample=3
 metric=bca

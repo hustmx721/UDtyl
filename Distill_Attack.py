@@ -435,7 +435,7 @@ def main():
     if args.attack_alpha is None:
         args.attack_alpha = 1.5 * args.attack_eps / max(1, args.attack_steps)
 
-    args.eot_tag = "noeot"
+    args.eot_tag = "eot_scale0.95-1.05_p1.0"
     lambda_tag = format_lambda_tag(args.lambda_task, args.lambda_uid, args.lambda_reg)
     combined_tag = f"{args.eot_tag}_{lambda_tag}"
 

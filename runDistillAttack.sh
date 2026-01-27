@@ -15,14 +15,22 @@ models=("ShallowConvNet")
 # EOT disabled for all runs to match the request.
 eot_flags=(
   # --disable_eot
+  # resample
+  # --eot_shift 0
+  # --eot_shift_prob 0.0
+  # --eot_channel_dropout 0.0 --eot_channel_dropout_prob 0.0
+  # --eot_scale_prob 0.0
+  # --eot_resample 0.05 --eot_resample_prob 1.0
+  # scale
   --eot_shift 0
   --eot_shift_prob 0.0
+  --eot_scale
+  --eot_scale_min 0.95 --eot_scale_max 1.05 --eot_scale_prob 1.0
   --eot_channel_dropout 0.0 --eot_channel_dropout_prob 0.0
-  --eot_scale_prob 0.0
-  --eot_resample 0.05 --eot_resample_prob 1.0
+  --eot_resample 0.0 --eot_resample_prob 0.0
 )
 
-gpus=(0 1 2 3 4 5)
+gpus=(0 1 2)
 
 # Multiple PGD settings. attack_alpha is left unset to use Distill_Attack.py's auto rule.
 # Format: "eps steps norm random_start"
@@ -35,7 +43,7 @@ attack_configs=(
   "0.05 5 l2 true"
 )
 
-max_jobs=6
+max_jobs=12
 jobs=()
 job_idx=0
 failed=0
