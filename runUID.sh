@@ -1,7 +1,7 @@
 echo "UID Classify Experiments"
 
 datasets=("Rest" "Transient" "Steady" "Motor")
-models=("EEGNet" "DeepConvNet" "ShallowConvNet" "1D_LSTM" "BrainprintNet" "MSNet")
+models=("EEGNet" "DeepConvNet" "ShallowConvNet" "1D_LSTM" "BrainprintNet" "FBCNet" "MSNet" "FBMSNet")
 gpus=(0 1 2 3 4 5 6)
 
 max_jobs=12
