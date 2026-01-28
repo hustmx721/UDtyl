@@ -17,6 +17,7 @@ from utils.Logging import Logger
 from evaluate import evaluate
 from main_EM import em_error_min_train
 from main_LLock import build_lock_params, create_lock, train_lock_and_model, evaluate_with_lock
+from main_Distill import build_argument_parser as build_distill_parser, train_distillation
 from main_Handi import (
     build_template,
     train_one_epoch_with_template,
@@ -41,6 +42,23 @@ def _save_method_csv(results: np.ndarray, seeds: List[int], args, method: str) -
     csv_path = args.csv_root / f"{args.dataset}"
     _ensure_dir(csv_path)
     df.to_csv(csv_path / f"SOTAComp_{method}_{args.model}.csv")
+
+
+def _build_distill_args(base_args):
+    parser = build_distill_parser()
+    distill_args = parser.parse_args([])
+    distill_args.dataset = base_args.dataset
+    distill_args.gpuid = base_args.gpuid
+    distill_args.seed = base_args.seed
+    distill_args.task_model = base_args.model
+    distill_args.uid_model = base_args.model
+    distill_args.initlr = base_args.initlr
+    distill_args.bs = base_args.bs
+    distill_args.model_root = base_args.model_root
+    distill_args.csv_root = base_args.csv_root
+    distill_args.log_root = base_args.log_root
+    distill_args.repeats = 1
+    return distill_args
 
 
 def _train_handi_method(trainloader, valloader, args, device, template):
@@ -237,6 +255,44 @@ def run_handi_method(args, seeds: List[int], method: str) -> np.ndarray:
     return results
 
 
+def run_distill(args, seeds: List[int]) -> np.ndarray:
+    results = np.zeros((len(seeds), 5))
+
+    for idx, seed in enumerate(seeds):
+        start_time = time.time()
+        distill_args = _build_distill_args(args)
+        distill_args.seed = seed
+
+        print("=" * 30)
+        print(f"[Distill] dataset: {distill_args.dataset}")
+        print(f"[Distill] task model: {distill_args.task_model}")
+        print(f"[Distill] uid model : {distill_args.uid_model}")
+        print(f"[Distill] seed      : {distill_args.seed}")
+        print(f"[Distill] gpu       : {distill_args.gpuid}")
+
+        metrics = train_distillation(distill_args)
+        pert_task = metrics["perturbed_task"]
+        pert_uid = metrics["perturbed_uid"]
+
+        elapsed = time.time() - start_time
+        results[idx] = [pert_task[0], pert_task[1], pert_task[2], pert_task[3], elapsed]
+
+        print(
+            f"[Distill] Task Acc:{pert_task[0] * 100:.2f}% F1:{pert_task[1] * 100:.2f}% "
+            f"BCA:{pert_task[2] * 100:.2f}% EER:{pert_task[3] * 100:.2f}%"
+        )
+        print(
+            f"[Distill] UID  Acc:{pert_uid[0] * 100:.2f}% F1:{pert_uid[1] * 100:.2f}% "
+            f"BCA:{pert_uid[2] * 100:.2f}% EER:{pert_uid[3] * 100:.2f}%"
+        )
+        print(f"[Distill] 总耗时: {elapsed:.2f}s")
+
+        gc.collect()
+        torch.cuda.empty_cache()
+
+    return results
+
+
 def main():
     args = init_args()
     args = set_args(args)
@@ -255,6 +311,7 @@ def main():
     method_results["LLockLinear"] = run_llock_linear(copy.deepcopy(args), seeds)
     method_results["SN"] = run_handi_method(copy.deepcopy(args), seeds, "sn")
     method_results["RAND"] = run_handi_method(copy.deepcopy(args), seeds, "rand")
+    method_results["Distill"] = run_distill(copy.deepcopy(args), seeds)
 
     summary_rows = []
     for method, result in method_results.items():
