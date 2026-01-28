@@ -57,7 +57,7 @@ def _build_distill_args(base_args):
     distill_args.model_root = base_args.model_root
     distill_args.csv_root = base_args.csv_root
     distill_args.log_root = base_args.log_root
-    distill_args.repeats = 1
+    distill_args.repeats = 3
     return distill_args
 
 
@@ -275,7 +275,7 @@ def run_distill(args, seeds: List[int]) -> np.ndarray:
         pert_uid = metrics["perturbed_uid"]
 
         elapsed = time.time() - start_time
-        results[idx] = [pert_task[0], pert_task[1], pert_task[2], pert_task[3], elapsed]
+        results[idx] = [pert_uid[0], pert_uid[1], pert_uid[2], pert_uid[3], elapsed]
 
         print(
             f"[Distill] Task Acc:{pert_task[0] * 100:.2f}% F1:{pert_task[1] * 100:.2f}% "
@@ -296,7 +296,7 @@ def run_distill(args, seeds: List[int]) -> np.ndarray:
 def main():
     args = init_args()
     args = set_args(args)
-    apply_thread_limits(getattr(args, "torch_threads", 4))
+    apply_thread_limits(getattr(args, "torch_threads", 5))
 
     log_path = args.log_root / f"SOTAComp_{args.dataset}_{args.model}.log"
     _ensure_dir(args.log_root)
