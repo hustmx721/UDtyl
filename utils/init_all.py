@@ -60,6 +60,40 @@ def init_args():
         default=0.05,
         help="Scaling factor for handcrafted UD templates",
     )
+    parser.add_argument(
+        "--perturbation_path",
+        type=str,
+        default=None,
+        help="Optional STFT perturbation checkpoint to evaluate UD robustness",
+    )
+    parser.add_argument(
+        "--delta_root",
+        type=Path,
+        default=default_model_root.parent / "Distill_Delta",
+        help="Root directory that stores pretrained STFT delta checkpoints",
+    )
+    parser.add_argument(
+        "--src_model",
+        type=str,
+        default=None,
+        help="Source model name used to resolve pretrained STFT perturbations",
+    )
+    parser.add_argument("--disable_eot", action="store_true", help="Disable EOT when regenerating UD data")
+    parser.add_argument("--eot_shift", type=int, default=16)
+    parser.add_argument("--eot_scale", action="store_true", help="Enable amplitude scaling transform")
+    parser.add_argument("--eot_scale_min", type=float, default=0.9)
+    parser.add_argument("--eot_scale_max", type=float, default=1.1)
+    parser.add_argument("--eot_channel_dropout", type=float, default=0.05)
+    parser.add_argument("--eot_resample", type=float, default=0.02)
+    parser.add_argument("--eot_shift_prob", type=float, default=1.0, help="Probability to apply time shift")
+    parser.add_argument("--eot_scale_prob", type=float, default=1.0, help="Probability to apply scaling")
+    parser.add_argument(
+        "--eot_channel_dropout_prob", type=float, default=1.0, help="Probability to apply channel dropout"
+    )
+    parser.add_argument("--eot_resample_prob", type=float, default=1.0, help="Probability to apply resampling jitter")
+    parser.add_argument("--lambda_task", type=float, default=1.0)
+    parser.add_argument("--lambda_uid", type=float, default=5.0)
+    parser.add_argument("--lambda_reg", type=float, default=1e-3)
     # logs path
     parser.add_argument("--log_root", type=Path, default=default_log_root,
                         help="Directory to store training logs")
