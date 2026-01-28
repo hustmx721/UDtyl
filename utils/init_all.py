@@ -99,6 +99,18 @@ def init_args():
                         help="Directory to store training logs")
     parser.add_argument("--model_root", type=Path, default=default_model_root,
                         help="Directory to store trained model checkpoints")
+    parser.add_argument(
+        "--save_models",
+        action="store_true",
+        default=True,
+        help="Save model checkpoints during training",
+    )
+    parser.add_argument(
+        "--no-save-models",
+        action="store_false",
+        dest="save_models",
+        help="Disable saving model checkpoints during training",
+    )
     parser.add_argument("--csv_root", type=Path, default=default_csv_root,
                         help="Directory to store exported CSV results")
     parser.add_argument("--extra_sys_path", type=Path, default=default_sys_path,

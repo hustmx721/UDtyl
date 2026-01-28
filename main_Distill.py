@@ -121,9 +121,10 @@ def _train_teacher_from_scratch(
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
-    checkpoint_path: Path,
-    metrics_path: Path,
+    checkpoint_path: Optional[Path],
+    metrics_path: Optional[Path],
     prefix: str,
+    should_save: bool,
 ) -> Tuple[nn.Module, Tuple[float, float, float, float]]:
     print(f"No {prefix} checkpoint provided. Training model from scratch...")
     trainloader, valloader, testloader = load_data(args, include_index=False)
@@ -154,8 +155,9 @@ def _train_teacher_from_scratch(
             best_val_acc = val_acc
             best_state = deepcopy(model.state_dict())
             epochs_since_improve = 0
-            torch.save(best_state, checkpoint_path)
-            print(f"Updated best {prefix} checkpoint -> {checkpoint_path}")
+            if should_save and checkpoint_path is not None:
+                torch.save(best_state, checkpoint_path)
+                print(f"Updated best {prefix} checkpoint -> {checkpoint_path}")
         else:
             epochs_since_improve += 1
 
@@ -173,7 +175,8 @@ def _train_teacher_from_scratch(
             test_acc, test_f1, test_bca, test_eer
         )
     )
-    _save_teacher_metrics(metrics_path, clean_metrics, args.seed)
+    if should_save and metrics_path is not None:
+        _save_teacher_metrics(metrics_path, clean_metrics, args.seed)
     return model, clean_metrics
 
 
@@ -190,20 +193,34 @@ def _prepare_supervised_model(
     model_args = set_args(model_args)
     model, optimizer, device = load_all(model_args)
 
-    checkpoint_path = _resolve_checkpoint_path(model_args, checkpoint, prefix, model_name)
-    metrics_path = _resolve_metrics_path(model_args, prefix, model_name)
+    should_save = getattr(model_args, "save_models", True)
+    checkpoint_path = (
+        _resolve_checkpoint_path(model_args, checkpoint, prefix, model_name)
+        if should_save
+        else None
+    )
+    metrics_path = (
+        _resolve_metrics_path(model_args, prefix, model_name) if should_save else None
+    )
 
     if checkpoint and Path(checkpoint).is_file():
         state = torch.load(checkpoint, map_location=device)
         model.load_state_dict(state)
         print(f"Loaded {prefix} checkpoint from {checkpoint}")
-    elif checkpoint_path.is_file():
+    elif checkpoint_path is not None and checkpoint_path.is_file():
         state = torch.load(checkpoint_path, map_location=device)
         model.load_state_dict(state)
         print(f"Loaded {prefix} checkpoint from {checkpoint_path}")
     else:
         model, clean_metrics = _train_teacher_from_scratch(
-            model_args, model, optimizer, device, checkpoint_path, metrics_path, prefix
+            model_args,
+            model,
+            optimizer,
+            device,
+            checkpoint_path,
+            metrics_path,
+            prefix,
+            should_save,
         )
         model.eval()
         for p in model.parameters():
@@ -222,7 +239,8 @@ def _prepare_supervised_model(
     print(
         f"[{prefix}][Clean Test] Acc={test_acc:.4f}, F1={test_f1:.4f}, BCA={test_bca:.4f}, EER={test_eer:.4f}"
     )
-    _save_teacher_metrics(metrics_path, clean_metrics, model_args.seed)
+    if should_save and metrics_path is not None:
+        _save_teacher_metrics(metrics_path, clean_metrics, model_args.seed)
     return model, device, clean_metrics
 
 
@@ -311,6 +329,8 @@ def train_distillation(args: argparse.Namespace) -> None:
     args = set_args(args)
     args.disable_eot = getattr(args, "disable_eot", False)
     args.eot_tag = getattr(args, "eot_tag", describe_eot(args))
+    if not getattr(args, "save_models", True):
+        args.save_delta = ""
     eot_distribution = build_eot_distribution(args)
     eot_distribution_eval = None  # Always disable EOT when evaluating/testing the perturbed samples
 
@@ -576,6 +596,18 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repeats", type=int, default=5, help="Number of seeds to run")
     parser.add_argument("--log_root", type=Path, default=default_log_root)
     parser.add_argument("--is_task", type=bool, default=True)
+    parser.add_argument(
+        "--save_models",
+        action="store_true",
+        default=True,
+        help="Save teacher checkpoints/metrics during distillation",
+    )
+    parser.add_argument(
+        "--no-save-models",
+        action="store_false",
+        dest="save_models",
+        help="Disable saving teacher checkpoints/metrics during distillation",
+    )
     parser.add_argument("--csv_root", type=Path, default=default_csv_root, help="Directory to store CSV results")
     return parser
 
