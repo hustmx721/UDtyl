@@ -36,7 +36,17 @@ def _save_method_csv(results: np.ndarray, seeds: List[int], args, method: str) -
     metrics = np.vstack([results, np.mean(results, axis=0), np.std(results, axis=0)])
     df = pd.DataFrame(
         metrics,
-        columns=["Acc", "F1", "BCA", "EER", "Time"],
+        columns=[
+            "Task_Acc",
+            "Task_F1",
+            "Task_BCA",
+            "Task_EER",
+            "UID_Acc",
+            "UID_F1",
+            "UID_BCA",
+            "UID_EER",
+            "Time",
+        ],
         index=[*(str(seed) for seed in seeds), "Avg", "Std"],
     ).round(4)
     csv_path = args.csv_root / f"{args.dataset}"
@@ -58,6 +68,8 @@ def _build_distill_args(base_args):
     distill_args.csv_root = base_args.csv_root
     distill_args.log_root = base_args.log_root
     distill_args.repeats = 3
+    distill_args.save_models = False
+    distill_args.save_delta = ""
     return distill_args
 
 
@@ -115,49 +127,58 @@ def _train_handi_method(trainloader, valloader, args, device, template):
     return model
 
 
+def _run_em_once(base_args, seed: int, is_task: bool) -> List[float]:
+    args = copy.deepcopy(base_args)
+    args.seed = seed
+    args.is_task = is_task
+    args = set_args(args)
+
+    print("=" * 30)
+    print(f"[EM] dataset: {args.dataset}")
+    print(f"[EM] model  : {args.model}")
+    print(f"[EM] seed   : {args.seed}")
+    print(f"[EM] gpu    : {args.gpuid}")
+    print(f"[EM] is_task: {args.is_task}")
+
+    set_seed(args.seed)
+    trainloader, valloader, testloader = load_data(args, include_index=False)
+
+    model_path = args.model_root / f"{args.dataset}"
+    if getattr(args, "save_models", True):
+        _ensure_dir(model_path)
+
+    model, optimizer, device = load_all(args)
+    model, _ = em_error_min_train(
+        model=model,
+        optimizer=optimizer,
+        trainloader=trainloader,
+        valloader=valloader,
+        savepath=model_path,
+        args=args,
+        device=device,
+        mode_tag="Task" if args.is_task else "UID",
+    )
+
+    _, test_acc, test_f1, test_bca, test_eer = evaluate(
+        model, testloader, args, device
+    )
+    print(
+        f"[EM] 测试集 Acc:{test_acc * 100:.2f}% F1:{test_f1 * 100:.2f}% "
+        f"BCA:{test_bca * 100:.2f}% EER:{test_eer * 100:.2f}%"
+    )
+    return [test_acc, test_f1, test_bca, test_eer]
+
+
 def run_em(args, seeds: List[int]) -> np.ndarray:
-    results = np.zeros((len(seeds), 5))
+    results = np.zeros((len(seeds), 9))
 
     for idx, seed in enumerate(seeds):
         start_time = time.time()
-        args.seed = seed
-        args = set_args(args)
-
-        print("=" * 30)
-        print(f"[EM] dataset: {args.dataset}")
-        print(f"[EM] model  : {args.model}")
-        print(f"[EM] seed   : {args.seed}")
-        print(f"[EM] gpu    : {args.gpuid}")
-        print(f"[EM] is_task: {args.is_task}")
-
-        set_seed(args.seed)
-        trainloader, valloader, testloader = load_data(args, include_index=False)
-
-        model_path = args.model_root / f"{args.dataset}"
-        _ensure_dir(model_path)
-
-        model, optimizer, device = load_all(args)
-        model, _ = em_error_min_train(
-            model=model,
-            optimizer=optimizer,
-            trainloader=trainloader,
-            valloader=valloader,
-            savepath=model_path,
-            args=args,
-            device=device,
-            mode_tag="Task" if args.is_task else "UID",
-        )
-
-        test_loss, test_acc, test_f1, test_bca, test_eer = evaluate(
-            model, testloader, args, device
-        )
+        task_metrics = _run_em_once(args, seed, True)
+        uid_metrics = _run_em_once(args, seed, False)
         elapsed = time.time() - start_time
 
-        results[idx] = [test_acc, test_f1, test_bca, test_eer, elapsed]
-        print(
-            f"[EM] 测试集 Acc:{test_acc * 100:.2f}% F1:{test_f1 * 100:.2f}% "
-            f"BCA:{test_bca * 100:.2f}% EER:{test_eer * 100:.2f}%"
-        )
+        results[idx] = [*task_metrics, *uid_metrics, elapsed]
         print(f"[EM] 总耗时: {elapsed:.2f}s")
 
         gc.collect()
@@ -166,44 +187,53 @@ def run_em(args, seeds: List[int]) -> np.ndarray:
     return results
 
 
+def _run_llock_once(base_args, seed: int, is_task: bool) -> List[float]:
+    args = copy.deepcopy(base_args)
+    args.seed = seed
+    args.lock_type = "linear"
+    args.is_task = is_task
+    args = set_args(args)
+
+    print("=" * 30)
+    print(f"[LLock-Linear] dataset: {args.dataset}")
+    print(f"[LLock-Linear] model  : {args.model}")
+    print(f"[LLock-Linear] seed   : {args.seed}")
+    print(f"[LLock-Linear] gpu    : {args.gpuid}")
+    print(f"[LLock-Linear] is_task: {args.is_task}")
+
+    set_seed(args.seed)
+    trainloader, valloader, testloader = load_data(args)
+
+    lock_params = build_lock_params(trainloader, args)
+    model, optimizer, device = load_all(args)
+    torch.cuda.empty_cache()
+    if device.type == "cuda":
+        torch.cuda.set_device(device)
+
+    lock = create_lock(args, lock_params, device)
+    train_lock_and_model(trainloader, lock, model, args, device)
+
+    _, test_acc, test_f1, test_bca, test_eer = evaluate_with_lock(
+        model, lock, testloader, device
+    )
+
+    print(
+        f"[LLock-Linear] 测试集 Acc:{test_acc * 100:.2f}% F1:{test_f1 * 100:.2f}% "
+        f"BCA:{test_bca * 100:.2f}% EER:{test_eer * 100:.2f}%"
+    )
+    return [test_acc, test_f1, test_bca, test_eer]
+
+
 def run_llock_linear(args, seeds: List[int]) -> np.ndarray:
-    results = np.zeros((len(seeds), 5))
+    results = np.zeros((len(seeds), 9))
 
     for idx, seed in enumerate(seeds):
         start_time = time.time()
-        args.seed = seed
-        args.lock_type = "linear"
-        args = set_args(args)
-
-        print("=" * 30)
-        print(f"[LLock-Linear] dataset: {args.dataset}")
-        print(f"[LLock-Linear] model  : {args.model}")
-        print(f"[LLock-Linear] seed   : {args.seed}")
-        print(f"[LLock-Linear] gpu    : {args.gpuid}")
-        print(f"[LLock-Linear] is_task: {args.is_task}")
-
-        set_seed(args.seed)
-        trainloader, valloader, testloader = load_data(args)
-
-        lock_params = build_lock_params(trainloader, args)
-        model, optimizer, device = load_all(args)
-        torch.cuda.empty_cache()
-        if device.type == "cuda":
-            torch.cuda.set_device(device)
-
-        lock = create_lock(args, lock_params, device)
-        train_lock_and_model(trainloader, lock, model, args, device)
-
-        test_loss, test_acc, test_f1, test_bca, test_eer = evaluate_with_lock(
-            model, lock, testloader, device
-        )
-
+        task_metrics = _run_llock_once(args, seed, True)
+        uid_metrics = _run_llock_once(args, seed, False)
         elapsed = time.time() - start_time
-        results[idx] = [test_acc, test_f1, test_bca, test_eer, elapsed]
-        print(
-            f"[LLock-Linear] 测试集 Acc:{test_acc * 100:.2f}% F1:{test_f1 * 100:.2f}% "
-            f"BCA:{test_bca * 100:.2f}% EER:{test_eer * 100:.2f}%"
-        )
+
+        results[idx] = [*task_metrics, *uid_metrics, elapsed]
         print(f"[LLock-Linear] 总耗时: {elapsed:.2f}s")
 
         gc.collect()
@@ -212,41 +242,50 @@ def run_llock_linear(args, seeds: List[int]) -> np.ndarray:
     return results
 
 
+def _run_handi_once(base_args, seed: int, method: str, is_task: bool) -> List[float]:
+    args = copy.deepcopy(base_args)
+    args.seed = seed
+    args.handi_method = method
+    args.is_task = is_task
+    args = set_args(args)
+
+    print("=" * 30)
+    print(f"[Handi-{method.upper()}] dataset: {args.dataset}")
+    print(f"[Handi-{method.upper()}] model  : {args.model}")
+    print(f"[Handi-{method.upper()}] seed   : {args.seed}")
+    print(f"[Handi-{method.upper()}] gpu    : {args.gpuid}")
+    print(f"[Handi-{method.upper()}] is_task: {args.is_task}")
+
+    set_seed(args.seed)
+    trainloader, valloader, testloader = load_data(args, include_index=True)
+
+    device = torch.device(
+        "cuda:" + str(args.gpuid) if torch.cuda.is_available() else "cpu"
+    )
+    template = build_template(trainloader, args, device)
+    model = _train_handi_method(trainloader, valloader, args, device, template)
+
+    _, test_acc, test_f1, test_bca, test_eer = evaluate_with_template(
+        model, testloader, device, template
+    )
+
+    print(
+        f"[Handi-{method.upper()}] 测试集 Acc:{test_acc * 100:.2f}% "
+        f"F1:{test_f1 * 100:.2f}% BCA:{test_bca * 100:.2f}% EER:{test_eer * 100:.2f}%"
+    )
+    return [test_acc, test_f1, test_bca, test_eer]
+
+
 def run_handi_method(args, seeds: List[int], method: str) -> np.ndarray:
-    results = np.zeros((len(seeds), 5))
+    results = np.zeros((len(seeds), 9))
 
     for idx, seed in enumerate(seeds):
         start_time = time.time()
-        args.seed = seed
-        args.handi_method = method
-        args = set_args(args)
-
-        print("=" * 30)
-        print(f"[Handi-{method.upper()}] dataset: {args.dataset}")
-        print(f"[Handi-{method.upper()}] model  : {args.model}")
-        print(f"[Handi-{method.upper()}] seed   : {args.seed}")
-        print(f"[Handi-{method.upper()}] gpu    : {args.gpuid}")
-        print(f"[Handi-{method.upper()}] is_task: {args.is_task}")
-
-        set_seed(args.seed)
-        trainloader, valloader, testloader = load_data(args, include_index=True)
-
-        device = torch.device(
-            "cuda:" + str(args.gpuid) if torch.cuda.is_available() else "cpu"
-        )
-        template = build_template(trainloader, args, device)
-        model = _train_handi_method(trainloader, valloader, args, device, template)
-
-        test_loss, test_acc, test_f1, test_bca, test_eer = evaluate_with_template(
-            model, testloader, device, template
-        )
-
+        task_metrics = _run_handi_once(args, seed, method, True)
+        uid_metrics = _run_handi_once(args, seed, method, False)
         elapsed = time.time() - start_time
-        results[idx] = [test_acc, test_f1, test_bca, test_eer, elapsed]
-        print(
-            f"[Handi-{method.upper()}] 测试集 Acc:{test_acc * 100:.2f}% "
-            f"F1:{test_f1 * 100:.2f}% BCA:{test_bca * 100:.2f}% EER:{test_eer * 100:.2f}%"
-        )
+
+        results[idx] = [*task_metrics, *uid_metrics, elapsed]
         print(f"[Handi-{method.upper()}] 总耗时: {elapsed:.2f}s")
 
         gc.collect()
@@ -256,7 +295,7 @@ def run_handi_method(args, seeds: List[int], method: str) -> np.ndarray:
 
 
 def run_distill(args, seeds: List[int]) -> np.ndarray:
-    results = np.zeros((len(seeds), 5))
+    results = np.zeros((len(seeds), 9))
 
     for idx, seed in enumerate(seeds):
         start_time = time.time()
@@ -275,7 +314,17 @@ def run_distill(args, seeds: List[int]) -> np.ndarray:
         pert_uid = metrics["perturbed_uid"]
 
         elapsed = time.time() - start_time
-        results[idx] = [pert_uid[0], pert_uid[1], pert_uid[2], pert_uid[3], elapsed]
+        results[idx] = [
+            pert_task[0],
+            pert_task[1],
+            pert_task[2],
+            pert_task[3],
+            pert_uid[0],
+            pert_uid[1],
+            pert_uid[2],
+            pert_uid[3],
+            elapsed,
+        ]
 
         print(
             f"[Distill] Task Acc:{pert_task[0] * 100:.2f}% F1:{pert_task[1] * 100:.2f}% "
@@ -297,6 +346,8 @@ def main():
     args = init_args()
     args = set_args(args)
     apply_thread_limits(getattr(args, "torch_threads", 5))
+    args.repeats = 3
+    args.save_models = False
 
     log_path = args.log_root / f"SOTAComp_{args.dataset}_{args.model}.log"
     _ensure_dir(args.log_root)
@@ -319,11 +370,15 @@ def main():
         summary_rows.append(
             {
                 "Method": method,
-                "Acc": np.mean(result[:, 0]),
-                "F1": np.mean(result[:, 1]),
-                "BCA": np.mean(result[:, 2]),
-                "EER": np.mean(result[:, 3]),
-                "Time": np.mean(result[:, 4]),
+                "Task_Acc": np.mean(result[:, 0]),
+                "Task_F1": np.mean(result[:, 1]),
+                "Task_BCA": np.mean(result[:, 2]),
+                "Task_EER": np.mean(result[:, 3]),
+                "UID_Acc": np.mean(result[:, 4]),
+                "UID_F1": np.mean(result[:, 5]),
+                "UID_BCA": np.mean(result[:, 6]),
+                "UID_EER": np.mean(result[:, 7]),
+                "Time": np.mean(result[:, 8]),
             }
         )
 
