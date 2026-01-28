@@ -112,6 +112,7 @@ def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args,
     eps = args.em_eps
     alpha = args.em_alpha if args.em_alpha is not None else eps / 10.0
     outer_rounds = args.em_iters if args.em_iters is not None else args.em_outer
+    should_save = getattr(args, "save_models", True)
 
     if args.em_init_model:
         init_path = os.path.expanduser(args.em_init_model)
@@ -133,6 +134,8 @@ def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args,
         delta = init_classwise_noise(trainloader, args.nclass, eps, device)
     best_acc = 0.0
     best_outer = -1
+    best_state = None
+    best_delta = None
 
     for outer in tqdm(range(outer_rounds), desc="Error-Minimization"):
         for _ in range(args.em_theta_epochs):
@@ -174,8 +177,18 @@ def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args,
         if val_acc > best_acc:
             best_acc = val_acc
             best_outer = outer
-            torch.save(model.state_dict(), os.path.join(savepath, f"EM_{mode_tag}_{args.model}_{args.seed}.pth"))
-            torch.save(delta.cpu(), os.path.join(savepath, f"EM_delta_{mode_tag}_{args.model}_{args.seed}.pt"))
+            if should_save:
+                torch.save(
+                    model.state_dict(),
+                    os.path.join(savepath, f"EM_{mode_tag}_{args.model}_{args.seed}.pth"),
+                )
+                torch.save(
+                    delta.cpu(),
+                    os.path.join(savepath, f"EM_delta_{mode_tag}_{args.model}_{args.seed}.pt"),
+                )
+            else:
+                best_state = copy.deepcopy(model.state_dict())
+                best_delta = delta.detach().clone()
 
         if train_err < args.em_lambda:
             print(f"Stop since train_err={train_err:.4f} < λ={args.em_lambda}")
@@ -184,9 +197,14 @@ def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args,
             print(f"Early stopping triggered at outer round {outer+1}.")
             break
 
-    best_ckpt = os.path.join(savepath, f"EM_{mode_tag}_{args.model}_{args.seed}.pth")
-    if os.path.isfile(best_ckpt):
-        model.load_state_dict(torch.load(best_ckpt, map_location=device))
+    if should_save:
+        best_ckpt = os.path.join(savepath, f"EM_{mode_tag}_{args.model}_{args.seed}.pth")
+        if os.path.isfile(best_ckpt):
+            model.load_state_dict(torch.load(best_ckpt, map_location=device))
+    elif best_state is not None:
+        model.load_state_dict(best_state)
+        if best_delta is not None:
+            delta = best_delta
 
     return model, delta
 
