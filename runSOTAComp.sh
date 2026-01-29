@@ -1,10 +1,10 @@
 echo "SOTA Comparison Experiments"
 
-datasets=("Rest" "Transient" "Steady" "Motor")
-models=("EEGNet" "DeepConvNet" "ShallowConvNet")
+datasets=("Motor")
+models=("ShallowConvNet")
 
-gpus=(0 1 2 3 4 5 6)
-max_jobs=6
+gpus=(6)
+max_jobs=1
 jobs=()
 job_idx=0
 
@@ -15,7 +15,11 @@ for dataset in "${datasets[@]}"; do
 
     echo "Launch: dataset=${dataset}, model=${model}, gpu=${gpu_id}"
 
-    python -u main_SOTAComp.py --dataset="$dataset" --gpuid="$gpu_id" --model="$model" &
+    python -u main_SOTAComp.py \
+      --dataset="$dataset" \
+      --gpuid="$gpu_id" \
+      --model="$model" \
+      --no-save-models &
     jobs+=($!)
 
     if (( ${#jobs[@]} >= max_jobs )); then

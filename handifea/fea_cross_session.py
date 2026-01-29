@@ -27,6 +27,7 @@ from sklearn import svm
 from sklearn.metrics import accuracy_score, f1_score, recall_score, precision_score, roc_curve, balanced_accuracy_score
 from sklearn.preprocessing import OneHotEncoder
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from Distill import EOTDistribution, IdentityTransform, STFTDeltaPerturber
 from utils.preprocess import preprocessing
 from utils.Logging import Logger
@@ -229,8 +230,10 @@ def apply_ud_numpy(
         batch = data[start:start + batch_size]
         batch_t = torch.from_numpy(batch).to(device)
         batch_t = batch_t.unsqueeze(1)
+        # 实际测试的时候不采用EOT
         transform = _sample_transform(eot_distribution, device)
-        batch_ud = _apply_ud_batch(batch_t, perturber, transform)
+        test_without_eot = IdentityTransform()
+        batch_ud = _apply_ud_batch(batch_t, perturber, test_without_eot)
         perturbed_batches.append(batch_ud.squeeze(1).cpu().numpy())
     return np.concatenate(perturbed_batches, axis=0)
 
@@ -253,7 +256,7 @@ def clf_predict(train_f, test_f, train_y, test_y):
 
 def main():
     parser = argparse.ArgumentParser(description="Cross-session handcrafted feature baseline (SVM)")
-    parser.add_argument("--dataset", type=str, default="Rest")
+    parser.add_argument("--dataset", type=str, default="Motor")
     parser.add_argument("--feature", type=str, default="STFT", choices=["WPD", "STFT", "AR", "MFCC"])
     parser.add_argument("--label", type=str, default="uid", choices=["uid", "task"])
     parser.add_argument("--stft_window_seconds", type=float, default=1.0)
@@ -278,8 +281,9 @@ def main():
     parser.add_argument("--log_root", type=str, default="/mnt/data1/tyl/UnlearnableData/src/logs")
     args = parser.parse_args()
 
-    sys.stdout = Logger(os.path.join(args.log_root, f"{args.dataset}_CrossSession_{args.feature}_SVM.log"))
+    sys.stdout = Logger(os.path.join(args.log_root, f"Fea_{args.dataset}_{args.feature}_SVM.log"))
 
+    args.perturbation_path = f"/mnt/data1/tyl/UnlearnableData/src/ModelSave/Distill_Delta/{args.dataset}/ShallowConvNet/eot_resample0.05_p1.0_lt1.0_lu5.0_lr0.001_seed2024.pth"
     print("=" * 30)
     print(f"dataset: {args.dataset}")
     print(f"feature: {args.feature}")

@@ -56,7 +56,7 @@ def _save_method_csv(results: np.ndarray, seeds: List[int], args, method: str) -
 
 def _build_distill_args(base_args):
     parser = build_distill_parser()
-    distill_args = parser.parse_args([])
+    distill_args = parser.parse_args(["--dataset", base_args.dataset])
     distill_args.dataset = base_args.dataset
     distill_args.gpuid = base_args.gpuid
     distill_args.seed = base_args.seed
@@ -70,6 +70,14 @@ def _build_distill_args(base_args):
     distill_args.repeats = 3
     distill_args.save_models = False
     distill_args.save_delta = ""
+    # 默认采用resample的EOT, 且测试的时候不采用EOT -- eot_distribution_eval = None 
+    distill_args.eot_shift = 0
+    distill_args.eot_shift_prob  = 0.0
+    distill_args.eot_channel_dropout = 0.0 
+    distill_args.eot_channel_dropout_prob =  0.0
+    distill_args.eot_scale_prob =  0.0
+    distill_args.eot_resample =  0.05 
+    distill_args.eot_resample_prob = 1.0
     return distill_args
 
 
@@ -229,6 +237,7 @@ def run_llock_linear(args, seeds: List[int]) -> np.ndarray:
 
     for idx, seed in enumerate(seeds):
         start_time = time.time()
+        args.lock_type = "linear"
         task_metrics = _run_llock_once(args, seed, True)
         uid_metrics = _run_llock_once(args, seed, False)
         elapsed = time.time() - start_time
