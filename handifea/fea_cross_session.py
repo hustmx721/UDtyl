@@ -228,7 +228,7 @@ def apply_ud_numpy(
 ) -> np.ndarray:
     perturbed_batches = []
     for start in range(0, data.shape[0], batch_size):
-        batch = data[start:start + batch_size]
+        batch = np.ascontiguousarray(data[start:start + batch_size])
         batch_t = torch.from_numpy(batch).to(device)
         batch_t = batch_t.unsqueeze(1)
         # 实际测试的时候不采用EOT

@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 from typing import Optional
+from FBCNet import FBCNet
+from FBMSNet import FBMSNet
 
 
 def CalculateOutSize(model, channels, samples):
@@ -24,17 +26,14 @@ def LoadModel(model_name, Chans, Samples, n_classes):
         model = CNN_LSTM(channels=Chans, n_classes=n_classes, time_points=Samples, 
                          hidden_size=128, num_layers=2)
     elif model_name == 'BrainprintNet':
-        model = BrainprintNet(kernels=[7, 15, 31, 63, 127], fs=250, temporalLayer='LogVarLayer',
-                               in_channels=Chans, nbands=12, num_classes=n_classes)
-    elif model_name == 'FBCNet':
-        model = FBCNet(kernels=[7, 15, 31, 63, 127], fs=250, temporalLayer='LogVarLayer',
-                       in_channels=Chans, nbands=12, num_classes=n_classes)
+        model = BrainprintNet(kernels=[11,21,31,41,51], fs=250, num_classes=n_classes,
+                              in_channels=Chans, nbands=12)
     elif model_name == 'MSNet':
-        model = MSNet(kernels=[7, 15, 31, 63, 127], temporalLayer='LogVarLayer',
-                       in_channels=Chans, num_classes=n_classes)
+        model = MSNet(kernels=[11,21,31,41,51], hidden_chans=64, in_channels=Chans, num_classes=n_classes)
+    elif model_name == 'FBCNet':
+        model = FBCNet(nChan=Chans, fs=250, nClass=n_classes, nBands=12)
     elif model_name == 'FBMSNet':
-        model = FBMSNet(kernels=[7, 15, 31, 63, 127], temporalLayer='LogVarLayer',
-                        in_channels=Chans, num_classes=n_classes)
+        model = FBMSNet(nChan=Chans, nTime=Samples, nClass=n_classes, fs=250)
     else:
         raise 'No such model'
     return model
@@ -444,17 +443,6 @@ class BrainprintNet(nn.Module):
         return self.fc(features)
 
 
-class FBCNet(BrainprintNet):
-    """Filter-bank CNN baseline.
-
-    Reuses the BrainprintNet backbone to provide a baseline compatible with
-    experiments that refer to FBCNet in this codebase.
-    """
-
-    pass
-    
-
-
 class MSNet(nn.Module):
 
     def __init__(self, kernels, hidden_chans:int=64, temporalLayer = 'LogVarLayer', strideFactor= 5,
@@ -515,13 +503,4 @@ class MSNet(nn.Module):
         features = out
         return self.fc(features)
 
-
-class FBMSNet(MSNet):
-    """Filter-bank multi-scale network baseline.
-
-    Reuses the MSNet backbone to provide a baseline compatible with
-    experiments that refer to FBMSNet in this codebase.
-    """
-
-    pass
     
