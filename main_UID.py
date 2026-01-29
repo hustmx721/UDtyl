@@ -86,7 +86,7 @@ def _candidate_delta_paths(
     tags: Sequence[str],
 ) -> Sequence[Path]:
     base_dir = delta_root / dataset / src_model
-    return [base_dir / f"{tag}_seed{seed}.pth" for tag in tags]
+    return [base_dir / f"Delta4SOTA_{tag}_seed{seed}.pth" for tag in tags]
 
 
 def resolve_delta_path(args, seed: int) -> Path:
@@ -165,8 +165,10 @@ def evaluate_on_ud(
         x = x.to(device)
         y = y.to(device)
 
+        # 测试时默认关闭EOT
         transform = _sample_transform(eot_distribution, device)
-        x_ud = _apply_ud(x, perturber, transform)
+        test_without_eot = IdentityTransform()
+        x_ud = _apply_ud(x, perturber, test_without_eot)
 
         logits = model(x_ud)
         loss = clf_loss_func(logits, y.long())
@@ -237,7 +239,7 @@ def UIDClassify(trainloader, valloader, savepath, args):
             best_acc = val_acc
             best_epoch = epoch
             torch.save(model.state_dict(),
-                       os.path.join(savepath, f"UID_{args.model}_{args.seed}.pth"))
+                       os.path.join(savepath, f"Delta4SOTA_{args.model}_{args.seed}.pth"))
 
         val_acc_all.append(val_acc)
         val_f1_all.append(val_f1)
@@ -264,7 +266,7 @@ def main():
     results = np.zeros((5, 4))
     ud_results = np.zeros((5, 4))
 
-    log_path = args.log_root / f"{args.dataset}_UID_{args.model}.log"
+    log_path = args.log_root / f"Delta4SOTA_{args.dataset}_UID_{args.model}.log"
     sys.stdout = Logger(log_path)
 
     for idx, seed in enumerate(range(args.seed, args.seed + args.repeats)):
@@ -302,7 +304,8 @@ def main():
 
         if args.perturbation_path or args.src_model:
             eot_distribution = build_eot_distribution(args)
-            perturber_path = resolve_delta_path(args, seed)
+            # perturber_path = resolve_delta_path(args, seed)
+            perturber_path = f"/mnt/data1/tyl/UnlearnableData/src/ModelSave/Distill_Delta/{args.dataset}/ShallowConvNet/eot_resample0.05_p1.0_lt1.0_lu5.0_lr0.001_seed2024.pth"
             print(f"delta path : {perturber_path}")
             perturber = _load_perturber(perturber_path, device)
             ud_loss, ud_acc, ud_f1, ud_bca, ud_eer = evaluate_on_ud(
@@ -365,7 +368,7 @@ def main():
                              columns=['Acc', 'F1', 'BCA', 'EER'],
                              index=['2024', '2025', '2026', '2027', '2028', "Avg", "Std"])
         ud_df = ud_df.round(4)
-        ud_df.to_csv(csv_path / f"UID_{args.model}_UD.csv")
+        ud_df.to_csv(csv_path / f"Delta4SOTA_{args.model}_UD.csv")
 
 
 if __name__ == "__main__":

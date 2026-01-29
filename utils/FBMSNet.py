@@ -316,7 +316,7 @@ class FBMSNet(nn.Module):
         x = self.temporalLayer(x)
         f = torch.flatten(x, start_dim=1)
         c = self.fc(f)
-        return f, c
+        return c
 
     def get_size(self, nChan, nTime):
         data = torch.ones((1, 12, nChan, nTime))

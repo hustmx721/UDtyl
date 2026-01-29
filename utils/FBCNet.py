@@ -181,7 +181,7 @@ class FBCNet(nn.Module):
         x = x.reshape([*x.shape[0:2], self.strideFactor, int(x.shape[3]/self.strideFactor)])
         x = self.temporalLayer(x)
         x = torch.flatten(x, start_dim= 1)
-        return x, self.lastLayer(x)
+        return self.lastLayer(x)
 
 
 class FBCNet_mod(nn.Module):

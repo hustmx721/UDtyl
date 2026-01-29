@@ -71,7 +71,10 @@ def STFT(X, time_length, fs):
         for p in range(X.shape[1]): # 逐试次
             for k in range(X.shape[2]): # 逐通道
                 _, _, S = spectrogram(X[id,p,k],fs=fs,window=window, nperseg=windowsize, noverlap=overlap, nfft=nfft)
-                FM_slice[id,p,k] = np.abs(S.squeeze())
+                magnitude = np.abs(S)
+                if magnitude.ndim > 1:
+                    magnitude = magnitude.mean(axis=-1)
+                FM_slice[id,p,k] = magnitude.squeeze()
     FM_slice = FM_slice.reshape((X.shape[0],X.shape[1],-1)) # (9,288,11022)
 
     return FM_slice
