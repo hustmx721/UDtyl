@@ -12,6 +12,7 @@ Usage example:
 """
 
 import argparse
+import csv
 import os
 import sys
 import time
@@ -281,6 +282,7 @@ def main():
     parser.add_argument("--log_root", type=str, default="/mnt/data1/tyl/UnlearnableData/src/logs")
     args = parser.parse_args()
 
+    os.makedirs(args.log_root, exist_ok=True)
     sys.stdout = Logger(os.path.join(args.log_root, f"Fea_{args.dataset}_{args.feature}_SVM.log"))
 
     args.perturbation_path = f"/mnt/data1/tyl/UnlearnableData/src/ModelSave/Distill_Delta/{args.dataset}/ShallowConvNet/eot_resample0.05_p1.0_lt1.0_lu5.0_lr0.001_seed2024.pth"
@@ -299,33 +301,7 @@ def main():
 
     print(f"预处理完成,累计用时{time.time() - start_time:.2f}s!")
 
-    train_f = _extract_feature_set(
-        train_x,
-        fs,
-        feature=args.feature,
-        stft_window_seconds=args.stft_window_seconds,
-        ar_order=args.ar_order,
-        mfcc_framesize=args.mfcc_framesize,
-        mfcc_mel_band=args.mfcc_mel_band,
-        mfcc_hop_length=args.mfcc_hop_length,
-    )
-    test_f = _extract_feature_set(
-        test_x,
-        fs,
-        feature=args.feature,
-        stft_window_seconds=args.stft_window_seconds,
-        ar_order=args.ar_order,
-        mfcc_framesize=args.mfcc_framesize,
-        mfcc_mel_band=args.mfcc_mel_band,
-        mfcc_hop_length=args.mfcc_hop_length,
-    )
-
-    acc, f1, bca, recall, precision, eer = clf_predict(train_f, test_f, train_y, test_y)
-    print(
-        f"用户分类准确率为{acc:.4f}, F1值为{f1:.4f}, BCA值为{bca:.4f}, "
-        f"Recall为{recall:.4f}, Precision为{precision:.4f}, EER为{eer:.4f}"
-    )
-
+    test_x_ud = None
     if args.perturbation_path:
         device = torch.device(args.device if torch.cuda.is_available() else "cpu")
         perturber = _load_perturber(Path(args.perturbation_path), device)
@@ -338,23 +314,96 @@ def main():
             device=device,
             batch_size=args.batch_size,
         )
-        test_f_ud = _extract_feature_set(
-            test_x_ud,
+
+    features = ["WPD", "STFT", "AR", "MFCC"]
+    results = []
+    for feature in features:
+        train_f = _extract_feature_set(
+            train_x,
             fs,
-            feature=args.feature,
+            feature=feature,
             stft_window_seconds=args.stft_window_seconds,
             ar_order=args.ar_order,
             mfcc_framesize=args.mfcc_framesize,
             mfcc_mel_band=args.mfcc_mel_band,
             mfcc_hop_length=args.mfcc_hop_length,
         )
-        ud_acc, ud_f1, ud_bca, ud_recall, ud_precision, ud_eer = clf_predict(
-            train_f, test_f_ud, train_y, test_y
+        test_f = _extract_feature_set(
+            test_x,
+            fs,
+            feature=feature,
+            stft_window_seconds=args.stft_window_seconds,
+            ar_order=args.ar_order,
+            mfcc_framesize=args.mfcc_framesize,
+            mfcc_mel_band=args.mfcc_mel_band,
+            mfcc_hop_length=args.mfcc_hop_length,
         )
+
+        acc, f1, bca, recall, precision, eer = clf_predict(train_f, test_f, train_y, test_y)
         print(
-            f"扰动测试集准确率为{ud_acc:.4f}, F1值为{ud_f1:.4f}, BCA值为{ud_bca:.4f}, "
-            f"Recall为{ud_recall:.4f}, Precision为{ud_precision:.4f}, EER为{ud_eer:.4f}"
+            f"[{feature}] 用户分类准确率为{acc:.4f}, F1值为{f1:.4f}, BCA值为{bca:.4f}, "
+            f"Recall为{recall:.4f}, Precision为{precision:.4f}, EER为{eer:.4f}"
         )
+
+        row = {
+            "feature": feature,
+            "acc": acc,
+            "f1": f1,
+            "bca": bca,
+            "recall": recall,
+            "precision": precision,
+            "eer": eer,
+        }
+
+        if test_x_ud is not None:
+            test_f_ud = _extract_feature_set(
+                test_x_ud,
+                fs,
+                feature=feature,
+                stft_window_seconds=args.stft_window_seconds,
+                ar_order=args.ar_order,
+                mfcc_framesize=args.mfcc_framesize,
+                mfcc_mel_band=args.mfcc_mel_band,
+                mfcc_hop_length=args.mfcc_hop_length,
+            )
+            ud_acc, ud_f1, ud_bca, ud_recall, ud_precision, ud_eer = clf_predict(
+                train_f, test_f_ud, train_y, test_y
+            )
+            print(
+                f"[{feature}] 扰动测试集准确率为{ud_acc:.4f}, F1值为{ud_f1:.4f}, BCA值为{ud_bca:.4f}, "
+                f"Recall为{ud_recall:.4f}, Precision为{ud_precision:.4f}, EER为{ud_eer:.4f}"
+            )
+            row.update(
+                {
+                    "ud_acc": ud_acc,
+                    "ud_f1": ud_f1,
+                    "ud_bca": ud_bca,
+                    "ud_recall": ud_recall,
+                    "ud_precision": ud_precision,
+                    "ud_eer": ud_eer,
+                }
+            )
+        results.append(row)
+
+    csv_path = os.path.join(args.log_root, f"Fea_{args.dataset}_SVM_metrics.csv")
+    fieldnames = [
+        "feature",
+        "acc",
+        "f1",
+        "bca",
+        "recall",
+        "precision",
+        "eer",
+    ]
+    if test_x_ud is not None:
+        fieldnames.extend(
+            ["ud_acc", "ud_f1", "ud_bca", "ud_recall", "ud_precision", "ud_eer"]
+        )
+    with open(csv_path, "w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(results)
+    print(f"结果已保存至: {csv_path}")
     print("=" * 30)
 
 
