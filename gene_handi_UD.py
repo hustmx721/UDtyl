@@ -9,6 +9,7 @@ class RandTemplate:
         T: int,
         alpha: float,
         per_channel_std: Optional[torch.Tensor] = None,
+        user_std: Optional[Dict[int, float]] = None,
         device: str = "cpu",
     ):
         """User-dependent uniform noise template."""
@@ -19,9 +20,13 @@ class RandTemplate:
         self.per_channel_std = (
             per_channel_std.to(device) if per_channel_std is not None else None
         )
+        self.user_std = user_std or {}
         self.templates: Dict[int, torch.Tensor] = {}
 
-    def _scale(self, noise: torch.Tensor) -> torch.Tensor:
+    def _scale(self, noise: torch.Tensor, user_id: int) -> torch.Tensor:
+        if user_id in self.user_std:
+            scale = self.alpha * float(self.user_std[user_id])
+            return noise * scale
         if self.per_channel_std is not None:
             scale = self.alpha * self.per_channel_std.view(-1, 1)  # [C,1]
         else:
@@ -32,7 +37,7 @@ class RandTemplate:
         if user_id not in self.templates:
             g = torch.Generator(device=self.device).manual_seed(seed_base + int(user_id))
             noise = 2.0 * torch.rand((self.C, self.T), generator=g, device=self.device) - 1.0
-            self.templates[user_id] = self._scale(noise)
+            self.templates[user_id] = self._scale(noise, user_id)
         return self.templates[user_id]
 
     def apply(self, x: torch.Tensor, user_ids: torch.Tensor) -> torch.Tensor:
@@ -60,13 +65,12 @@ class RandTemplate:
 
 
 def _make_user_code_wave(
-    user_id: int, T: int, bit_len: int = 10, reps_per_bit: int = 10
+    user_code: int, T: int, bit_len: int = 10, reps_per_bit: int = 10
 ) -> torch.Tensor:
-    """Generate a user-dependent square wave code ``[1, T]`` from ``user_id``."""
+    """Generate SN square wave ``[1, T]`` from a decimal code (UE-Chen style)."""
 
-    g = torch.Generator().manual_seed(1315423911 ^ user_id)
-    bits = torch.randint(low=0, high=2, size=(bit_len,), generator=g)
-    bits = bits.float() * 2 - 1  # -> {-1, +1}
+    bits = [int(c) for c in f"{int(user_code):0>{bit_len}b}"[-bit_len:]]
+    bits = torch.tensor(bits, dtype=torch.float32) * 2 - 1  # {-1, +1}
     wave = bits.repeat_interleave(reps_per_bit)
     if wave.numel() < T:
         n_rep = (T + wave.numel() - 1) // wave.numel()
@@ -82,6 +86,8 @@ class SNTemplate:
         T: int,
         alpha: float,
         per_channel_std: Optional[torch.Tensor] = None,
+        user_std: Optional[Dict[int, float]] = None,
+        user_codes: Optional[Dict[int, int]] = None,
         device: str = "cpu",
         a_low: float = 0.5,
         a_high: float = 1.5,
@@ -94,12 +100,17 @@ class SNTemplate:
         self.per_channel_std = (
             per_channel_std.to(device) if per_channel_std is not None else None
         )  # [C] or None
+        self.user_std = user_std or {}
+        self.user_codes = user_codes or {}
         self.a_low, self.a_high = a_low, a_high
         self.reps_per_bit = reps_per_bit
         self.bit_len = bit_len
         self.templates: Dict[int, torch.Tensor] = {}
 
-    def _scale(self, base: torch.Tensor) -> torch.Tensor:
+    def _scale(self, base: torch.Tensor, user_id: int) -> torch.Tensor:
+        if user_id in self.user_std:
+            scale = self.alpha * float(self.user_std[user_id])
+            return base * scale
         if self.per_channel_std is not None:
             scale = self.alpha * self.per_channel_std.view(-1, 1)  # [C,1]
         else:
@@ -108,16 +119,19 @@ class SNTemplate:
 
     def get(self, user_id: int, seed_base: int = 2025) -> torch.Tensor:
         if user_id not in self.templates:
+            user_code = self.user_codes.get(user_id, user_id)
             w = _make_user_code_wave(
-                user_id,
+                user_code,
                 self.T,
                 bit_len=self.bit_len,
                 reps_per_bit=self.reps_per_bit,
             ).to(self.device)  # [1,T]
             g = torch.Generator(device=self.device).manual_seed(seed_base + int(user_id))
-            a = torch.empty(self.C, device=self.device).uniform_(self.a_low, self.a_high)
+            a = torch.empty(self.C, device=self.device).uniform_(
+                self.a_low, self.a_high, generator=g
+            )
             base = a.view(-1, 1) @ w  # [C,1] x [1,T] -> [C,T]
-            self.templates[user_id] = self._scale(base)
+            self.templates[user_id] = self._scale(base, user_id)
         return self.templates[user_id]
 
     def apply(self, x: torch.Tensor, user_ids: torch.Tensor) -> torch.Tensor:
