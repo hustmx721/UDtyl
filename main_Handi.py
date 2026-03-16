@@ -35,7 +35,7 @@ def _as_bct(x: torch.Tensor) -> Tuple[torch.Tensor, Callable[[torch.Tensor], tor
 
 
 def build_template(trainloader, args, device: torch.device):
-    """Create a handcrafted UD template using the first batch statistics."""
+    """Create handcrafted UD templates aligned with UE-Chen scaling/code logic."""
     first_batch = next(iter(trainloader))
     sample = first_batch[0].to(device)
 
@@ -43,10 +43,44 @@ def build_template(trainloader, args, device: torch.device):
     _, channels, timesteps = sample_bct.shape
     channel_std = sample_bct.std(dim=(0, 2))
 
+    user_std = {}
+    user_ids_all = []
+    for batch in trainloader:
+        x = batch[0].to(device)
+        ids = batch[2] if len(batch) == 3 else batch[1]
+        ids = ids.to(device).long()
+
+        x_bct, _ = _as_bct(x)
+        for uid in ids.unique().tolist():
+            mask = ids == uid
+            user_std[int(uid)] = x_bct[mask].std().item()
+            user_ids_all.append(int(uid))
+
+    unique_users = sorted(set(user_ids_all))
+
     if args.handi_method == "rand":
-        return RandTemplate(channels, timesteps, args.handi_alpha, channel_std, str(device))
+        return RandTemplate(
+            channels,
+            timesteps,
+            args.handi_alpha,
+            channel_std,
+            user_std=user_std,
+            device=str(device),
+        )
     if args.handi_method == "sn":
-        return SNTemplate(channels, timesteps, args.handi_alpha, channel_std, str(device))
+        rng = np.random.default_rng(args.seed)
+        code_pool = np.arange(1, 1000)
+        sampled_codes = rng.choice(code_pool, size=len(unique_users), replace=False)
+        user_codes = {uid: int(code) for uid, code in zip(unique_users, sampled_codes)}
+        return SNTemplate(
+            channels,
+            timesteps,
+            args.handi_alpha,
+            channel_std,
+            user_std=user_std,
+            user_codes=user_codes,
+            device=str(device),
+        )
     return STFTRandTemplate(channels, n_fft=256, alpha=args.handi_alpha, per_channel_std=channel_std, device=str(device))
 
 
