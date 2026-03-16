@@ -128,6 +128,10 @@ def summarize_results(results: np.ndarray, seeds: List[int], idx: int, prefix: s
     )
 
 
+def format_epsilon_for_name(epsilon: float) -> str:
+    return f"{epsilon:.0e}".replace("+", "")
+
+
 def save_results_csv(results: np.ndarray, args, prefix: str, seeds: List[int]):
     final_results = np.vstack([results, np.mean(results, axis=0), np.std(results, axis=0)])
     df = pd.DataFrame(
@@ -138,7 +142,8 @@ def save_results_csv(results: np.ndarray, args, prefix: str, seeds: List[int]):
     csv_path = args.csv_root / f"{args.dataset}"
     if not os.path.exists(csv_path):
         os.makedirs(csv_path)
-    df.to_csv(csv_path / f"LLock_{prefix}_{args.lock_type}_{args.model}.csv")
+    eps_tag = format_epsilon_for_name(args.lock_epsilon)
+    df.to_csv(csv_path / f"LLock_{prefix}_{args.lock_type}_{args.model}_eps{eps_tag}.csv")
 
 
 def main():
@@ -158,7 +163,8 @@ def main():
 
         results = np.zeros((len(seeds), 4))
 
-        log_path = refreshed_args.log_root / f"LLock_{refreshed_args.lock_type}_{refreshed_args.dataset}_LLock_{mode_tag}_{refreshed_args.model}.log"
+        eps_tag = format_epsilon_for_name(refreshed_args.lock_epsilon)
+        log_path = refreshed_args.log_root / f"LLock_{refreshed_args.lock_type}_{refreshed_args.dataset}_LLock_{mode_tag}_{refreshed_args.model}_eps{eps_tag}.log"
         sys.stdout = Logger(log_path)
 
         for idx, seed in enumerate(seeds):
@@ -171,6 +177,7 @@ def main():
             print(f"gpu    : {refreshed_args.gpuid}")
             print(f"is_task: {refreshed_args.is_task}")
             print(f"lock   : {refreshed_args.lock_type}")
+            print(f"epsilon: {refreshed_args.lock_epsilon}")
 
             set_seed(refreshed_args.seed)
             trainloader, valloader, testloader = load_data(refreshed_args)
@@ -206,19 +213,22 @@ def main():
             )
             print("=====================test are done===================")
 
-            model_path = refreshed_args.model_root / f"{refreshed_args.dataset}"
-            if not os.path.exists(model_path):
-                os.makedirs(model_path)
-            torch.save(
-                model.state_dict(),
-                os.path.join(
-                    model_path, f"LLock_{args.lock_type}_{mode_tag}_{refreshed_args.model}_{refreshed_args.seed}.pth"
-                ),
-            )
-            lock.save(
-                sname=f"LLock_{args.lock_type}_{mode_tag}_{refreshed_args.model}_{refreshed_args.seed}",
-                path=model_path,
-            )
+            if refreshed_args.save_models:
+                model_path = refreshed_args.model_root / f"{refreshed_args.dataset}"
+                if not os.path.exists(model_path):
+                    os.makedirs(model_path)
+                eps_tag = format_epsilon_for_name(refreshed_args.lock_epsilon)
+                torch.save(
+                    model.state_dict(),
+                    os.path.join(
+                        model_path,
+                        f"LLock_{args.lock_type}_{mode_tag}_{refreshed_args.model}_eps{eps_tag}_{refreshed_args.seed}.pth",
+                    ),
+                )
+                lock.save(
+                    sname=f"LLock_{args.lock_type}_{mode_tag}_{refreshed_args.model}_eps{eps_tag}_{refreshed_args.seed}",
+                    path=model_path,
+                )
 
             results[idx] = [test_acc, test_f1, test_bca, test_eer]
             summarize_results(results, seeds, idx, "LLock")
