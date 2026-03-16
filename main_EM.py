@@ -38,13 +38,20 @@ def init_classwise_noise(trainloader, n_classes: int, eps: float, device: torch.
     return delta
 
 
-def train_one_epoch_with_noise(model, trainloader, delta, optimizer, device, eps, clip_min=None, clip_max=None):
+def train_model_steps_with_noise(model, trainloader, delta, optimizer, device, train_step, clip_min=None, clip_max=None):
     model.train()
     total_loss = 0.0
     total_samples = 0
     correct = 0
+    data_iter = iter(trainloader)
 
-    for batch in trainloader:
+    for _ in range(train_step):
+        try:
+            batch = next(data_iter)
+        except StopIteration:
+            data_iter = iter(trainloader)
+            batch = next(data_iter)
+
         b_x, b_y = batch[:2]
         b_x = b_x.to(device)
         b_y = b_y.to(device).long()
@@ -70,6 +77,23 @@ def train_one_epoch_with_noise(model, trainloader, delta, optimizer, device, eps
     return train_err, avg_loss
 
 
+def min_max_attack(model, images, labels, init_noise, eps, alpha, pgd_steps, clip_min=None, clip_max=None):
+    perturb_img = clamp_tensor((images + init_noise).detach(), clip_min, clip_max)
+    for _ in range(pgd_steps):
+        perturb_img.requires_grad_(True)
+        logits = model(perturb_img)
+        loss = F.cross_entropy(logits, labels)
+        grad = torch.autograd.grad(loss, perturb_img, retain_graph=False, create_graph=False)[0]
+
+        with torch.no_grad():
+            eta = alpha * grad.sign()
+            perturb_img = perturb_img + eta
+            eta = torch.clamp(perturb_img - images, -eps, eps)
+            perturb_img = clamp_tensor(images + eta, clip_min, clip_max).detach()
+
+    return perturb_img, torch.clamp(perturb_img - images, -eps, eps)
+
+
 def update_classwise_noise(model, trainloader, delta, eps, alpha, pgd_steps, device, clip_min=None, clip_max=None):
     model.eval()
     perturb_sum = torch.zeros_like(delta)
@@ -79,23 +103,19 @@ def update_classwise_noise(model, trainloader, delta, eps, alpha, pgd_steps, dev
         b_x = b_x.to(device)
         b_y = b_y.to(device).long()
 
-        # Prepare per-sample adversarial examples in parallel
-        x_adv = clamp_tensor((b_x + delta[b_y]).detach(), clip_min, clip_max)
-
-        for _ in range(pgd_steps):
-            x_adv.requires_grad_(True)
-            logits = model(x_adv)
-            loss = F.cross_entropy(logits, b_y)
-            grad = torch.autograd.grad(loss, x_adv, retain_graph=False, create_graph=False)[0]
-
-            with torch.no_grad():
-                x_adv = x_adv - alpha * grad.sign()
-                perturb = torch.clamp(x_adv - b_x, -eps, eps)
-                x_adv = clamp_tensor(b_x + perturb, clip_min, clip_max)
-                x_adv = x_adv.detach()
+        _, perturb = min_max_attack(
+            model=model,
+            images=b_x,
+            labels=b_y,
+            init_noise=delta[b_y],
+            eps=eps,
+            alpha=alpha,
+            pgd_steps=pgd_steps,
+            clip_min=clip_min,
+            clip_max=clip_max,
+        )
 
         with torch.no_grad():
-            perturb = torch.clamp(x_adv - b_x, -eps, eps)
             perturb_sum.index_add_(0, b_y, perturb)
             counts = counts + torch.bincount(b_y, minlength=delta.size(0))
 
@@ -112,6 +132,8 @@ def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args,
     eps = args.em_eps
     alpha = args.em_alpha if args.em_alpha is not None else eps / 10.0
     outer_rounds = args.em_iters if args.em_iters is not None else args.em_outer
+    train_step = args.em_theta_epochs
+    stop_error = args.em_lambda
     should_save = getattr(args, "save_models", True)
 
     if args.em_init_model:
@@ -138,17 +160,16 @@ def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args,
     best_delta = None
 
     for outer in tqdm(range(outer_rounds), desc="Error-Minimization"):
-        for _ in range(args.em_theta_epochs):
-            train_err, train_loss = train_one_epoch_with_noise(
-                model=model,
-                trainloader=trainloader,
-                delta=delta,
-                optimizer=optimizer,
-                device=device,
-                eps=eps,
-                clip_min=args.em_clip_min,
-                clip_max=args.em_clip_max,
-            )
+        train_err, train_loss = train_model_steps_with_noise(
+            model=model,
+            trainloader=trainloader,
+            delta=delta,
+            optimizer=optimizer,
+            device=device,
+            train_step=train_step,
+            clip_min=args.em_clip_min,
+            clip_max=args.em_clip_max,
+        )
 
         update_classwise_noise(
             model=model,
@@ -190,8 +211,8 @@ def em_error_min_train(model, optimizer, trainloader, valloader, savepath, args,
                 best_state = copy.deepcopy(model.state_dict())
                 best_delta = delta.detach().clone()
 
-        if train_err < args.em_lambda:
-            print(f"Stop since train_err={train_err:.4f} < λ={args.em_lambda}")
+        if train_err > stop_error:
+            print(f"Stop since train_err={train_err:.4f} > universal_stop_error={stop_error}")
             break
         if (outer - best_outer) > args.earlystop:
             print(f"Early stopping triggered at outer round {outer+1}.")
